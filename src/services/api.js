@@ -1,74 +1,160 @@
-import axios from 'axios'
-
 /**
- * Centralized Axios client.
+ * Centralized Axios client — IFAS frontend.
  *
- * - Base URL comes from VITE_API_URL (see .env).
- * - Attaches the bearer token from the auth store's persisted storage.
- * - On a 401 response it clears the session and redirects to /login so
- *   session expiration is handled in one place.
+ * Auth flow (matches backend contract):
+ *  • Access token is kept in memory only (never localStorage / sessionStorage)
+ *    via the `tokenStore` singleton below.
+ *  • The server issues a short-lived access token in the response body and
+ *    sets a long-lived HttpOnly refresh-token cookie automatically.
+ *  • withCredentials: true ensures the cookie is sent on every request and on
+ *    the /auth/refresh call.
+ *  • On a 401 the interceptor calls POST /auth/refresh once. If it succeeds
+ *    the original request is retried with the new token. If it fails the
+ *    session is cleared and the user is sent to /login.
+ *  • A mutex (isRefreshing + queue) prevents multiple simultaneous 401s from
+ *    each triggering their own refresh call — only the first fires; the rest
+ *    wait and then retry with the same new token.
  *
- * NOTE: No secrets live in the frontend. The token is issued by the backend
- * and stored only in the browser for the duration of the session.
+ * Response unwrapping:
+ *  Every successful backend response is shaped as:
+ *    { success: true, message, data, meta }
+ *  The response interceptor unwraps this so callers receive
+ *    { data, meta }          ← for paginated results
+ *    data                    ← for single-item or array results
+ *  Errors are shaped as:
+ *    { success: false, message, errors: [{ field, message }] }
+ *  The error interceptor normalizes these into:
+ *    { message, fieldErrors: { [field]: message }, status }
+ *  so form components can map errors onto fields with one line.
  */
 
-const TOKEN_KEY = 'ifas_token'
-const USER_KEY = 'ifas_user'
+import axios from 'axios'
 
+// ── In-memory token store ─────────────────────────────────
+// Never persisted to disk. The only way to restore a session after a page
+// refresh is through the /auth/refresh endpoint (which uses the HttpOnly
+// cookie the browser sends automatically).
+export const tokenStore = {
+  _token: null,
+  get() { return this._token },
+  set(t) { this._token = t },
+  clear() { this._token = null },
+}
+
+// ── Axios instance ────────────────────────────────────────
 const api = axios.create({
   baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000/api',
   headers: { 'Content-Type': 'application/json' },
   timeout: 15000,
+  withCredentials: true, // send the HttpOnly refresh-token cookie on every req
 })
 
-// Request: attach token if present.
+// ── Request interceptor — attach access token ─────────────
 api.interceptors.request.use((config) => {
-  const token = localStorage.getItem(TOKEN_KEY)
-  if (token) {
-    config.headers.Authorization = `Bearer ${token}`
-  }
+  const token = tokenStore.get()
+  if (token) config.headers.Authorization = `Bearer ${token}`
   return config
 })
 
-// Response: surface a readable error and handle session expiration.
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    const status = error?.response?.status
+// ── 401 refresh mutex ─────────────────────────────────────
+let isRefreshing = false
+let refreshQueue = [] // [{ resolve, reject }]
 
-    // Session expired / unauthorized → clear and redirect once.
-    if (status === 401) {
-      localStorage.removeItem(TOKEN_KEY)
-      localStorage.removeItem(USER_KEY)
-      if (typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
-        window.location.href = '/login?expired=1'
+function processQueue(error, token) {
+  refreshQueue.forEach(({ resolve, reject }) => {
+    if (error) reject(error)
+    else resolve(token)
+  })
+  refreshQueue = []
+}
+
+// ── Response interceptor — unwrap envelope + handle 401 ───
+api.interceptors.response.use(
+  (response) => {
+    // Unwrap the { success, message, data, meta } envelope.
+    const body = response.data
+    if (body && typeof body === 'object' && 'success' in body) {
+      // Return an object that always has data + meta so callers are uniform.
+      return { data: body.data, meta: body.meta ?? null, message: body.message }
+    }
+    // Pass-through for non-envelope responses (e.g. CSV download streams).
+    return response
+  },
+
+  async (error) => {
+    const original = error.config
+
+    // Only attempt a refresh on 401, once, and not on the refresh call itself.
+    if (
+      error?.response?.status === 401 &&
+      !original._retried &&
+      !original.url?.includes('/auth/refresh')
+    ) {
+      if (isRefreshing) {
+        // Queue this request until the ongoing refresh resolves.
+        return new Promise((resolve, reject) => {
+          refreshQueue.push({ resolve, reject })
+        })
+          .then((newToken) => {
+            original.headers.Authorization = `Bearer ${newToken}`
+            return api(original)
+          })
+          .catch((err) => Promise.reject(normalizeError(err)))
+      }
+
+      original._retried = true
+      isRefreshing = true
+
+      try {
+        // The refresh cookie is sent automatically by the browser.
+        const res = await api.post('/auth/refresh')
+        const newToken = res.data?.accessToken ?? res.data
+        tokenStore.set(newToken)
+        processQueue(null, newToken)
+        original.headers.Authorization = `Bearer ${newToken}`
+        return api(original)
+      } catch (refreshError) {
+        processQueue(refreshError, null)
+        tokenStore.clear()
+        // Notify the auth store so it can clean up user state.
+        window.dispatchEvent(new CustomEvent('ifas:session-expired'))
+        if (!window.location.pathname.startsWith('/login')) {
+          window.location.href = '/login?expired=1'
+        }
+        return Promise.reject(normalizeError(refreshError))
+      } finally {
+        isRefreshing = false
       }
     }
 
-    // Normalize the error so callers can always read a message.
-    const normalized = normalizeError(error)
-    return Promise.reject(normalized)
+    return Promise.reject(normalizeError(error))
   }
 )
 
+// ── Error normalizer ──────────────────────────────────────
 function normalizeError(error) {
-  const data = error?.response?.data
+  const body = error?.response?.data
   const message =
-    data?.message ||
-    data?.error ||
-    (error?.code === 'ECONNABORTED'
-      ? 'The request timed out. Please try again.'
-      : error?.message) ||
+    body?.message ||
+    (error?.code === 'ECONNABORTED' ? 'The request timed out. Please try again.' : null) ||
+    error?.message ||
     'Something went wrong. Please try again.'
+
+  // Map field-level errors from the backend onto a plain object so form
+  // components can do:  if (err.fieldErrors?.email) { … }
+  const fieldErrors = {}
+  if (Array.isArray(body?.errors)) {
+    body.errors.forEach(({ field, message: msg }) => {
+      if (field) fieldErrors[field] = msg
+    })
+  }
+
   return {
     message,
+    fieldErrors,
     status: error?.response?.status,
-    data,
     isNetworkError: !error?.response,
   }
 }
-
-// Helpers also re-exported for the auth store to keep storage key parity.
-export const storageKeys = { TOKEN_KEY, USER_KEY }
 
 export default api

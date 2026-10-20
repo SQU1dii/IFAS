@@ -14,11 +14,11 @@ const props = defineProps({
 })
 
 function pct(goal) {
-  return goal.target > 0 ? Math.min(100, (goal.saved / goal.target) * 100) : 0
+  return goal.target_amount > 0 ? Math.min(100, (goal.current_amount / goal.target_amount) * 100) : 0
 }
 
 function remaining(goal) {
-  return Math.max(0, goal.target - goal.saved)
+  return Math.max(0, goal.target_amount - goal.current_amount)
 }
 </script>
 
@@ -59,11 +59,11 @@ function remaining(goal) {
           </span>
         </div>
 
-        <BaseProgress :value="goal.saved" :max="goal.target" color="green" size="md" />
+        <BaseProgress :value="goal.current_amount" :max="goal.target_amount" color="green" size="md" />
 
         <div class="flex justify-between items-center mt-1.5">
           <span class="text-xs text-slate-500 tabular-nums">
-            {{ formatCurrency(goal.saved) }} of {{ formatCurrency(goal.target) }}
+            {{ formatCurrency(goal.current_amount) }} of {{ formatCurrency(goal.target_amount) }}
           </span>
           <span class="text-xs text-slate-400">
             {{ remaining(goal) > 0 ? formatCurrency(remaining(goal)) + ' to go' : '🎉 Reached!' }}

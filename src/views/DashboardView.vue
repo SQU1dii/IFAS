@@ -76,7 +76,7 @@ async function fetchDashboard() {
   loading.value  = true
   apiError.value = ''
   try {
-    data.value = await dashboardService.getDashboard(
+    data.value = await dashboardService.getOverview(
       currentRange.value,
       comparisonRange.value
     )
@@ -96,15 +96,14 @@ const summary = computed(() => data.value?.summary ?? null)
 
 const netLabel = computed(() => {
   if (!summary.value) return '—'
-  const v = summary.value.netCashFlow
+  const v = summary.value.net_cash_flow
   const sign = v >= 0 ? '+' : ''
   return `${sign}${formatCurrency(v)}`
 })
 
-// Net cash flow card color: green when positive, red when negative.
 const netColor = computed(() => {
   if (!summary.value) return 'blue'
-  return summary.value.netCashFlow >= 0 ? 'green' : 'red'
+  return summary.value.net_cash_flow >= 0 ? 'green' : 'red'
 })
 </script>
 
@@ -127,8 +126,8 @@ const netColor = computed(() => {
 
         <SummaryCard
           label="Total Income"
-          :value="loading ? '—' : formatCurrency(summary?.totalIncome ?? 0)"
-          :change="summary?.changes?.income ?? null"
+          :value="loading ? '—' : formatCurrency(summary?.total_income ?? 0)"
+          :change="summary?.period_changes?.income ?? null"
           icon="income"
           color="green"
           :loading="loading"
@@ -137,8 +136,8 @@ const netColor = computed(() => {
 
         <SummaryCard
           label="Total Expenses"
-          :value="loading ? '—' : formatCurrency(summary?.totalExpenses ?? 0)"
-          :change="summary?.changes?.expenses ?? null"
+          :value="loading ? '—' : formatCurrency(summary?.total_expenses ?? 0)"
+          :change="summary?.period_changes?.expenses ?? null"
           icon="expenses"
           color="red"
           :loading="loading"
@@ -149,7 +148,7 @@ const netColor = computed(() => {
         <SummaryCard
           label="Net Cash Flow"
           :value="loading ? '—' : netLabel"
-          :change="summary?.changes?.netCashFlow ?? null"
+          :change="summary?.period_changes?.net_cash_flow ?? null"
           icon="net"
           :color="netColor"
           :loading="loading"
@@ -158,7 +157,7 @@ const netColor = computed(() => {
 
         <SummaryCard
           label="Savings Rate"
-          :value="loading ? '—' : formatPercent(summary?.savingsRate ?? 0)"
+          :value="loading ? '—' : formatPercent(summary?.savings_rate ?? 0)"
           :change="null"
           icon="savings"
           color="purple"
@@ -183,7 +182,7 @@ const netColor = computed(() => {
           </div>
           <div class="px-4 pb-5">
             <IncomeExpenseChart
-              :series="data?.monthlySeries ?? []"
+              :series="data?.monthly_series ?? []"
               :loading="loading"
             />
           </div>
@@ -197,7 +196,7 @@ const netColor = computed(() => {
           </div>
           <div class="px-4 pb-5">
             <SpendingByCategoryChart
-              :categories="data?.spendingByCategory ?? []"
+              :categories="data?.spending_by_category ?? []"
               :loading="loading"
             />
           </div>
@@ -206,7 +205,7 @@ const netColor = computed(() => {
           <template v-if="!loading && data?.spendingByCategory?.length">
             <div class="border-t border-slate-100 px-5 py-3 space-y-2">
               <div
-                v-for="(cat, i) in (data.spendingByCategory ?? []).slice(0, 5)"
+                v-for="(cat, i) in (data.spending_by_category ?? []).slice(0, 5)"
                 :key="cat.name"
                 class="flex items-center justify-between gap-2"
               >
@@ -237,7 +236,7 @@ const netColor = computed(() => {
           </div>
           <div class="px-4 pb-5">
             <NetCashFlowChart
-              :series="data?.monthlySeries ?? []"
+              :series="data?.monthly_series ?? []"
               :loading="loading"
             />
           </div>
@@ -259,7 +258,7 @@ const netColor = computed(() => {
           </div>
           <div class="px-5 pb-3">
             <BudgetUtilization
-              :budgets="data?.budgets ?? []"
+              :budgets="data?.budget_utilization ?? []"
               :loading="loading"
             />
           </div>
@@ -288,7 +287,7 @@ const netColor = computed(() => {
           </div>
           <div class="px-5 pb-3">
             <RecentTransactions
-              :transactions="data?.recentTransactions ?? []"
+              :transactions="data?.recent_transactions ?? []"
               :loading="loading"
             />
           </div>
@@ -310,7 +309,7 @@ const netColor = computed(() => {
           </div>
           <div class="px-5 pb-3">
             <SavingsOverview
-              :goals="data?.savingsGoals ?? []"
+              :goals="data?.savings_goals ?? []"
               :loading="loading"
             />
           </div>

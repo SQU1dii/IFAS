@@ -11,6 +11,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useUiStore } from '@/stores/ui'
 import { useAuthStore } from '@/stores/auth'
 import { RANGE_PRESETS } from '@/utils/date'
+import { formatRelativeTime } from '@/utils/format'
 
 const ui = useUiStore()
 const auth = useAuthStore()
@@ -33,7 +34,7 @@ const currentPresetLabel = computed(
 
 // ── Notifications ────────────────────────────────────────
 const notifOpen = ref(false)
-const unread = computed(() => ui.notifications.filter((n) => !n.read).length)
+const unread = computed(() => ui.unreadCount)
 
 function openNotifications() {
   notifOpen.value = !notifOpen.value
@@ -44,6 +45,8 @@ function openNotifications() {
 function markAllRead() {
   ui.markAllRead()
 }
+
+onMounted(() => ui.loadNotifications())
 
 // ── Profile dropdown ─────────────────────────────────────
 const profileOpen = ref(false)
@@ -182,7 +185,8 @@ const notifTypeStyle = {
             <li
               v-for="n in ui.notifications"
               :key="n.id"
-              :class="['px-4 py-3 flex gap-3 items-start', !n.read && 'bg-slate-50']"
+              :class="['px-4 py-3 flex gap-3 items-start cursor-pointer hover:bg-slate-50 transition', !n.is_read && 'bg-slate-50']"
+              @click="ui.markRead(n.id)"
             >
               <span :class="['mt-0.5 shrink-0', notifTypeStyle[n.type] ?? 'text-slate-400']">
                 <svg class="h-4 w-4" fill="currentColor" viewBox="0 0 20 20" aria-hidden="true">
@@ -193,8 +197,9 @@ const notifTypeStyle = {
               <div class="flex-1 min-w-0">
                 <p class="text-sm font-medium text-navy-800">{{ n.title }}</p>
                 <p class="text-xs text-slate-500 mt-0.5 leading-relaxed">{{ n.body }}</p>
+                <p class="text-xs text-slate-400 mt-1">{{ formatRelativeTime(n.created_at) }}</p>
               </div>
-              <span v-if="!n.read" class="mt-1.5 shrink-0 h-2 w-2 rounded-full bg-emerald-500" aria-label="Unread" />
+              <span v-if="!n.is_read" class="mt-1.5 shrink-0 h-2 w-2 rounded-full bg-emerald-500" aria-label="Unread" />
             </li>
           </ul>
           <div class="px-4 py-2.5 border-t border-slate-100 text-center">

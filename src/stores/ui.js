@@ -1,78 +1,65 @@
 import { defineStore } from 'pinia'
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
+import dashboardService from '@/services/dashboardService'
 
 /**
- * UI store — cross-component UI state: the desktop sidebar collapse flag,
- * the mobile drawer, the date-filter range selection, and notifications.
- *
- * Centralizing these here means the sidebar, topbar, and content area can
- * all read/write shared state without prop-drilling.
+ * UI store — cross-component state.
+ * Sidebar collapse, mobile drawer, date-range selection, notifications.
  */
 export const useUiStore = defineStore('ui', () => {
   const sidebarCollapsed = ref(false)
-  const mobileMenuOpen = ref(false)
+  const mobileMenuOpen   = ref(false)
 
-  // Shared date-range selection driven by the top-bar filter.
-  const rangePreset = ref('this_month')
-  const customRange = ref(null) // { start, end } ISO when preset is 'custom'
+  // Date-range driven by the topbar picker.
+  const rangePreset  = ref('this_month')
+  const customRange  = ref(null) // { start, end } ISO strings
 
-  // Sample notifications (would come from the backend in production).
-  const notifications = ref([
-    { id: 1, title: 'Budget alert', body: 'Dining Out is at 92% of its limit.', read: false, type: 'warning' },
-    { id: 2, title: 'Salary received', body: 'Your monthly salary was credited.', read: false, type: 'positive' },
-    { id: 3, title: 'New insight', body: 'Your savings rate improved this month.', read: true, type: 'info' },
-  ])
+  // Notifications — loaded from the API, not hardcoded.
+  const notifications = ref([])
+  const notifLoading  = ref(false)
 
-  const unreadCount = () => notifications.value.filter((n) => !n.read).length
+  const unreadCount = computed(() => notifications.value.filter((n) => !n.is_read).length)
 
-  function toggleSidebar() {
-    sidebarCollapsed.value = !sidebarCollapsed.value
+  // ── Sidebar ───────────────────────────────────────────────
+  function toggleSidebar()          { sidebarCollapsed.value = !sidebarCollapsed.value }
+  function setSidebarCollapsed(v)   { sidebarCollapsed.value = v }
+  function openMobileMenu()         { mobileMenuOpen.value = true }
+  function closeMobileMenu()        { mobileMenuOpen.value = false }
+  function toggleMobileMenu()       { mobileMenuOpen.value = !mobileMenuOpen.value }
+
+  // ── Date range ────────────────────────────────────────────
+  function setRangePreset(key) { rangePreset.value = key; customRange.value = null }
+  function setCustomRange(s, e) { customRange.value = { start: s, end: e }; rangePreset.value = 'custom' }
+
+  // ── Notifications ─────────────────────────────────────────
+  async function loadNotifications() {
+    if (notifLoading.value) return
+    notifLoading.value = true
+    try {
+      notifications.value = await dashboardService.getNotifications()
+    } catch { /* silent */ } finally {
+      notifLoading.value = false
+    }
   }
 
-  function setSidebarCollapsed(value) {
-    sidebarCollapsed.value = value
+  async function markRead(id) {
+    await dashboardService.markNotificationRead(id)
+    const n = notifications.value.find((n) => n.id === id)
+    if (n) n.is_read = true
   }
 
-  function openMobileMenu() {
-    mobileMenuOpen.value = true
-  }
-
-  function closeMobileMenu() {
-    mobileMenuOpen.value = false
-  }
-
-  function toggleMobileMenu() {
-    mobileMenuOpen.value = !mobileMenuOpen.value
-  }
-
-  function setRangePreset(key) {
-    rangePreset.value = key
-    customRange.value = null
-  }
-
-  function setCustomRange(start, end) {
-    customRange.value = { start, end }
-    rangePreset.value = 'custom'
-  }
-
-  function markAllRead() {
-    notifications.value.forEach((n) => (n.read = true))
+  async function markAllRead() {
+    await dashboardService.markAllNotificationsRead()
+    notifications.value.forEach((n) => (n.is_read = true))
   }
 
   return {
-    sidebarCollapsed,
-    mobileMenuOpen,
-    rangePreset,
-    customRange,
-    notifications,
-    unreadCount,
-    toggleSidebar,
-    setSidebarCollapsed,
-    openMobileMenu,
-    closeMobileMenu,
-    toggleMobileMenu,
-    setRangePreset,
-    setCustomRange,
-    markAllRead,
+    sidebarCollapsed, mobileMenuOpen,
+    rangePreset, customRange,
+    notifications, notifLoading, unreadCount,
+    toggleSidebar, setSidebarCollapsed,
+    openMobileMenu, closeMobileMenu, toggleMobileMenu,
+    setRangePreset, setCustomRange,
+    loadNotifications, markRead, markAllRead,
   }
 })

@@ -19,15 +19,15 @@ const props = defineProps({
 })
 
 function statusBadge(status) {
-  return { 'on-track': 'green', 'warning': 'amber', 'over': 'red' }[status] ?? 'neutral'
+  return { 'on_track': 'green', 'warning': 'amber', 'over': 'red' }[status] ?? 'neutral'
 }
 
 function statusLabel(status) {
-  return { 'on-track': 'On track', 'warning': 'Near limit', 'over': 'Over budget' }[status] ?? status
+  return { 'on_track': 'On track', 'warning': 'Near limit', 'over': 'Over budget' }[status] ?? status
 }
 
 function barColor(status) {
-  return { 'on-track': 'green', 'warning': 'amber', 'over': 'red' }[status] ?? 'green'
+  return { 'on_track': 'green', 'warning': 'amber', 'over': 'red' }[status] ?? 'green'
 }
 </script>
 
@@ -63,7 +63,7 @@ function barColor(status) {
       <li v-for="b in budgets" :key="b.id" class="py-3.5">
         <div class="flex items-start justify-between gap-2 mb-2">
           <div class="flex items-center gap-2 min-w-0">
-            <span class="text-sm font-medium text-navy-800 truncate">{{ b.category }}</span>
+            <span class="text-sm font-medium text-navy-800 truncate">{{ b.category_name }}</span>
             <BaseBadge :variant="statusBadge(b.status)" size="sm">{{ statusLabel(b.status) }}</BaseBadge>
           </div>
           <span class="text-xs text-slate-500 shrink-0 tabular-nums">
