@@ -1,0 +1,111 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* =========================================================
+   Base
+   ========================================================= */
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+  }
+
+  body {
+    @apply bg-slate-50 text-navy-700 font-sans antialiased;
+  }
+
+  /* Respect users who prefer reduced motion. */
+  @media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  /* Visible focus ring for keyboard users across interactive elements. */
+  :focus-visible {
+    @apply outline-none ring-2 ring-emerald-500/60 ring-offset-2 ring-offset-white;
+  }
+}
+
+/* =========================================================
+   Reusable component classes (the design system)
+   These keep view markup consistent and DRY.
+   ========================================================= */
+@layer components {
+  /* White rounded card with a subtle border — the core surface. */
+  .card {
+    @apply bg-white rounded-2xl border border-slate-200 shadow-card;
+  }
+
+  .card-pad {
+    @apply card p-5 sm:p-6;
+  }
+
+  .section-title {
+    @apply text-base font-semibold text-navy-800;
+  }
+
+  .muted {
+    @apply text-sm text-slate-500;
+  }
+
+  /* Positive / negative monetary styling. */
+  .money-positive {
+    @apply text-emerald-600;
+  }
+
+  .money-negative {
+    @apply text-rose-600;
+  }
+
+  /* Form field wrapper */
+  .field {
+    @apply flex flex-col gap-1.5;
+  }
+
+  .field-label {
+    @apply text-sm font-medium text-navy-700;
+  }
+
+  .field-hint {
+    @apply text-xs text-slate-500;
+  }
+
+  .field-error {
+    @apply text-xs text-rose-600;
+  }
+
+  /* Standard form input look */
+  .input {
+    @apply w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-navy-800
+      placeholder:text-slate-400 transition
+      focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/30 focus:outline-none
+      disabled:bg-slate-50 disabled:text-slate-400;
+  }
+
+  .input-error {
+    @apply border-rose-400 focus:border-rose-500 focus:ring-rose-500/30;
+  }
+}
+
+/* =========================================================
+   Utilities
+   ========================================================= */
+@layer utilities {
+  /* Thin, unobtrusive scrollbar for scrollable panels. */
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: rgb(203 213 225) transparent;
+  }
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+  }
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    @apply bg-slate-300 rounded-full;
+  }
+}
