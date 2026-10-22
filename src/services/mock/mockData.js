@@ -22,10 +22,11 @@ function mulberry32(seed) {
     return ((t ^ (t >>> 14)) >>> 0) / 4294967296
   }
 }
-const rand  = mulberry32(20251020)
-const pick  = (arr) => arr[Math.floor(rand() * arr.length)]
+const rand    = mulberry32(20251020)
+const pick    = (arr) => arr[Math.floor(rand() * arr.length)]
 const between = (min, max) => Math.round((min + rand() * (max - min)) * 100) / 100
-const isoDate = (y, m, d) => new Date(y, m, d).toISOString().slice(0, 10)
+// isoDate is module-level so MOCK_CONTRIBUTIONS can reference it too.
+export const isoDate = (y, m, d) => new Date(y, m, d).toISOString().slice(0, 10)
 
 // ── Accounts ────────────────────────────────────────────────
 export const MOCK_ACCOUNTS = [
@@ -209,20 +210,41 @@ function generateTransactions() {
 export const MOCK_TRANSACTIONS = generateTransactions()
 
 // ── Budgets ─────────────────────────────────────────────────
+// period must be 'monthly' or 'yearly' only (per backend contract).
 export const MOCK_BUDGETS = [
-  { id: 'bud-groceries',      category_id: 'cat-groceries',     category_name: 'Groceries',     limit: 600,  period: 'monthly' },
-  { id: 'bud-dining',         category_id: 'cat-dining',        category_name: 'Dining Out',    limit: 300,  period: 'monthly' },
-  { id: 'bud-transport',      category_id: 'cat-transport',     category_name: 'Transport',     limit: 250,  period: 'monthly' },
-  { id: 'bud-entertainment',  category_id: 'cat-entertainment', category_name: 'Entertainment', limit: 150,  period: 'monthly' },
-  { id: 'bud-subscriptions',  category_id: 'cat-subscriptions', category_name: 'Subscriptions', limit: 80,   period: 'monthly' },
-  { id: 'bud-shopping',       category_id: 'cat-shopping',      category_name: 'Shopping',      limit: 400,  period: 'monthly' },
+  { id: 'bud-groceries',     category_id: 'cat-groceries',     category_name: 'Groceries',     limit: 600,  period: 'monthly', notes: '' },
+  { id: 'bud-dining',        category_id: 'cat-dining',        category_name: 'Dining Out',    limit: 300,  period: 'monthly', notes: '' },
+  { id: 'bud-transport',     category_id: 'cat-transport',     category_name: 'Transport',     limit: 250,  period: 'monthly', notes: '' },
+  { id: 'bud-entertainment', category_id: 'cat-entertainment', category_name: 'Entertainment', limit: 150,  period: 'monthly', notes: '' },
+  { id: 'bud-subscriptions', category_id: 'cat-subscriptions', category_name: 'Subscriptions', limit: 80,   period: 'monthly', notes: '' },
+  { id: 'bud-shopping',      category_id: 'cat-shopping',      category_name: 'Shopping',      limit: 400,  period: 'monthly', notes: '' },
+  { id: 'bud-healthcare',    category_id: 'cat-healthcare',    category_name: 'Healthcare',    limit: 500,  period: 'monthly', notes: '' },
+  { id: 'bud-education',     category_id: 'cat-education',     category_name: 'Education',     limit: 2400, period: 'yearly',  notes: 'Annual course budget' },
 ]
 
 // ── Savings goals ────────────────────────────────────────────
 export const MOCK_SAVINGS_GOALS = [
-  { id: 'goal-emergency', name: 'Emergency Fund',  target_amount: 10000, current_amount: 6400, target_date: '2026-06-30', notes: '' },
-  { id: 'goal-vacation',  name: 'Summer Vacation', target_amount: 3500,  current_amount: 1850, target_date: '2026-07-15', notes: '' },
-  { id: 'goal-laptop',    name: 'New Laptop',      target_amount: 2000,  current_amount: 1450, target_date: '2026-03-01', notes: '' },
+  { id: 'goal-emergency', name: 'Emergency Fund',  target_amount: 10000, current_amount: 6400, target_date: '2026-06-30', notes: '6 months of living expenses' },
+  { id: 'goal-vacation',  name: 'Summer Vacation', target_amount: 3500,  current_amount: 1850, target_date: '2026-07-15', notes: 'Trip to Europe' },
+  { id: 'goal-laptop',    name: 'New Laptop',      target_amount: 2000,  current_amount: 1450, target_date: '2026-03-01', notes: 'MacBook Pro replacement' },
+]
+
+// ── Savings contributions ────────────────────────────────────
+// type: 'contribution' | 'withdrawal'
+const _now = new Date()
+const _y   = _now.getFullYear()
+const _m   = _now.getMonth()
+export const MOCK_CONTRIBUTIONS = [
+  { id: 'con-1',  goal_id: 'goal-emergency', date: isoDate(_y, _m,     10), amount: 400,  type: 'contribution', notes: 'Monthly transfer'  },
+  { id: 'con-2',  goal_id: 'goal-emergency', date: isoDate(_y, _m - 1, 10), amount: 400,  type: 'contribution', notes: 'Monthly transfer'  },
+  { id: 'con-3',  goal_id: 'goal-emergency', date: isoDate(_y, _m - 2, 10), amount: 500,  type: 'contribution', notes: 'Bonus added'       },
+  { id: 'con-4',  goal_id: 'goal-emergency', date: isoDate(_y, _m - 3, 10), amount: 400,  type: 'contribution', notes: 'Monthly transfer'  },
+  { id: 'con-5',  goal_id: 'goal-emergency', date: isoDate(_y, _m - 4, 15), amount: 200,  type: 'withdrawal',   notes: 'Car repair'        },
+  { id: 'con-6',  goal_id: 'goal-vacation',  date: isoDate(_y, _m,     5),  amount: 300,  type: 'contribution', notes: ''                  },
+  { id: 'con-7',  goal_id: 'goal-vacation',  date: isoDate(_y, _m - 1, 5),  amount: 300,  type: 'contribution', notes: ''                  },
+  { id: 'con-8',  goal_id: 'goal-vacation',  date: isoDate(_y, _m - 2, 5),  amount: 250,  type: 'contribution', notes: ''                  },
+  { id: 'con-9',  goal_id: 'goal-laptop',    date: isoDate(_y, _m,     20), amount: 250,  type: 'contribution', notes: 'Freelance income'  },
+  { id: 'con-10', goal_id: 'goal-laptop',    date: isoDate(_y, _m - 1, 20), amount: 300,  type: 'contribution', notes: ''                  },
 ]
 
 // ── Notifications ────────────────────────────────────────────

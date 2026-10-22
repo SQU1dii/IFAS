@@ -69,17 +69,17 @@ const routes = [
         meta: { title: 'Accounts' },
       },
 
-      // ── Phase 2b (stubs) ─────────────────────────────────────────────
+      // ── Phase 2b ────────────────────────────────────────────────────
       {
         path: 'budgets',
         name: 'budgets',
-        component: () => import('@/components/layout/ComingSoonView.vue'),
+        component: () => import('@/views/BudgetsView.vue'),
         meta: { title: 'Budgets' },
       },
       {
         path: 'savings',
         name: 'savings',
-        component: () => import('@/components/layout/ComingSoonView.vue'),
+        component: () => import('@/views/SavingsView.vue'),
         meta: { title: 'Savings Goals' },
       },
 

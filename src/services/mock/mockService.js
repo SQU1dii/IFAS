@@ -15,6 +15,7 @@ import {
   MOCK_TRANSACTIONS,
   MOCK_BUDGETS,
   MOCK_SAVINGS_GOALS,
+  MOCK_CONTRIBUTIONS,
   MOCK_USER,
   MOCK_ACCOUNTS,
   MOCK_CATEGORIES,
@@ -32,6 +33,7 @@ let _transactions  = [...MOCK_TRANSACTIONS]
 let _accounts      = [...MOCK_ACCOUNTS]
 let _budgets       = [...MOCK_BUDGETS]
 let _savings       = [...MOCK_SAVINGS_GOALS]
+let _contributions = MOCK_CONTRIBUTIONS.map((c) => ({ ...c }))
 let _notifications = [...MOCK_NOTIFICATIONS]
 let _user          = { ...MOCK_USER }
 let _idSeq         = 9000 // IDs for new records
@@ -343,16 +345,227 @@ export async function mockMarkAllNotificationsRead() {
   return {}
 }
 
-// ── Budgets & Savings (used by dashboard + Phase 2b) ─────────
+// ── Budgets ───────────────────────────────────────────────────
 
+/**
+ * GET /budgets/status — returns every budget enriched with
+ * current-period spending, remaining, utilization, and status.
+ * The frontend DISPLAYS these values; it never recalculates them.
+ */
 export async function mockGetBudgets() {
   await delay()
   return computeBudgetUtilization(_transactions, new Date().toISOString().slice(0, 10))
 }
 
+export async function mockGetBudget(id) {
+  await delay()
+  const b = _budgets.find((b) => b.id === id)
+  if (!b) throw { message: 'Budget not found.', status: 404 }
+  // Enrich with current utilization
+  const [enriched] = computeBudgetUtilization(_transactions, new Date().toISOString().slice(0, 10))
+    .filter((x) => x.id === id)
+  return enriched ?? b
+}
+
+export async function mockCreateBudget(payload) {
+  await delay()
+  // Enforce period constraint: monthly or yearly only.
+  if (!['monthly', 'yearly'].includes(payload.period)) {
+    throw { message: 'period must be "monthly" or "yearly".', status: 422 }
+  }
+  const cat = MOCK_CATEGORIES.find((c) => c.id === payload.category_id)
+  const bud = {
+    id:            nextId('bud'),
+    category_id:   payload.category_id,
+    category_name: cat?.name ?? payload.category_name ?? '',
+    limit:         Number(payload.limit),
+    period:        payload.period,
+    notes:         payload.notes ?? '',
+  }
+  _budgets.push(bud)
+  return bud
+}
+
+export async function mockUpdateBudget(id, payload) {
+  await delay()
+  const idx = _budgets.findIndex((b) => b.id === id)
+  if (idx === -1) throw { message: 'Budget not found.', status: 404 }
+  if (payload.period && !['monthly', 'yearly'].includes(payload.period)) {
+    throw { message: 'period must be "monthly" or "yearly".', status: 422 }
+  }
+  const cat = payload.category_id
+    ? MOCK_CATEGORIES.find((c) => c.id === payload.category_id)
+    : null
+  _budgets[idx] = {
+    ..._budgets[idx],
+    ...payload,
+    limit: payload.limit != null ? Number(payload.limit) : _budgets[idx].limit,
+    category_name: cat?.name ?? _budgets[idx].category_name,
+  }
+  return _budgets[idx]
+}
+
+export async function mockDeleteBudget(id) {
+  await delay()
+  const idx = _budgets.findIndex((b) => b.id === id)
+  if (idx === -1) throw { message: 'Budget not found.', status: 404 }
+  _budgets.splice(idx, 1)
+  return {}
+}
+
+// ── Savings Goals ─────────────────────────────────────────────
+
 export async function mockGetSavingsGoals() {
   await delay()
-  return [..._savings]
+  // Enrich with derived progress fields so views never calculate totals.
+  return _savings.map((g) => enrichGoal(g))
+}
+
+export async function mockGetSavingsGoal(id) {
+  await delay()
+  const g = _savings.find((g) => g.id === id)
+  if (!g) throw { message: 'Savings goal not found.', status: 404 }
+  return enrichGoal(g)
+}
+
+export async function mockCreateSavingsGoal(payload) {
+  await delay()
+  const goal = {
+    id:             nextId('goal'),
+    name:           payload.name,
+    target_amount:  Number(payload.target_amount),
+    current_amount: Number(payload.initial_amount ?? 0),
+    target_date:    payload.target_date ?? null,
+    notes:          payload.notes ?? '',
+  }
+  _savings.push(goal)
+  // Record initial contribution if provided
+  if (goal.current_amount > 0) {
+    _contributions.push({
+      id:     nextId('con'),
+      goal_id: goal.id,
+      date:   new Date().toISOString().slice(0, 10),
+      amount:  goal.current_amount,
+      type:   'contribution',
+      notes:  'Initial deposit',
+    })
+  }
+  return enrichGoal(goal)
+}
+
+export async function mockUpdateSavingsGoal(id, payload) {
+  await delay()
+  const idx = _savings.findIndex((g) => g.id === id)
+  if (idx === -1) throw { message: 'Savings goal not found.', status: 404 }
+  _savings[idx] = {
+    ..._savings[idx],
+    name:          payload.name          ?? _savings[idx].name,
+    target_amount: payload.target_amount != null ? Number(payload.target_amount) : _savings[idx].target_amount,
+    target_date:   payload.target_date   ?? _savings[idx].target_date,
+    notes:         payload.notes         ?? _savings[idx].notes,
+  }
+  return enrichGoal(_savings[idx])
+}
+
+export async function mockDeleteSavingsGoal(id) {
+  await delay()
+  const idx = _savings.findIndex((g) => g.id === id)
+  if (idx === -1) throw { message: 'Savings goal not found.', status: 404 }
+  _savings.splice(idx, 1)
+  // Also remove all contributions for this goal.
+  _contributions = _contributions.filter((c) => c.goal_id !== id)
+  return {}
+}
+
+// ── Savings Contributions ─────────────────────────────────────
+
+/**
+ * GET /savings-goals/:id/contributions — history for one goal,
+ * sorted newest first.
+ */
+export async function mockGetContributions(goalId) {
+  await delay()
+  return _contributions
+    .filter((c) => c.goal_id === goalId)
+    .sort((a, b) => (a.date < b.date ? 1 : -1))
+}
+
+/**
+ * POST /savings-goals/:id/contributions
+ * payload: { amount, type ('contribution'|'withdrawal'), date, notes }
+ *
+ * Adjusts current_amount on the goal. Withdrawals cannot exceed
+ * the current balance (enforced here; backend also validates).
+ */
+export async function mockAddContribution(goalId, payload) {
+  await delay()
+  const gIdx = _savings.findIndex((g) => g.id === goalId)
+  if (gIdx === -1) throw { message: 'Savings goal not found.', status: 404 }
+
+  const amt  = Number(payload.amount)
+  const type = payload.type ?? 'contribution'
+
+  if (!['contribution', 'withdrawal'].includes(type)) {
+    throw { message: 'type must be "contribution" or "withdrawal".', status: 422 }
+  }
+  if (amt <= 0) {
+    throw { message: 'Amount must be greater than 0.', status: 422 }
+  }
+  if (type === 'withdrawal' && amt > _savings[gIdx].current_amount) {
+    throw { message: 'Withdrawal exceeds available balance.', status: 422 }
+  }
+
+  // Update the goal balance.
+  _savings[gIdx] = {
+    ..._savings[gIdx],
+    current_amount:
+      type === 'contribution'
+        ? _savings[gIdx].current_amount + amt
+        : _savings[gIdx].current_amount - amt,
+  }
+
+  const entry = {
+    id:      nextId('con'),
+    goal_id: goalId,
+    date:    payload.date ?? new Date().toISOString().slice(0, 10),
+    amount:  amt,
+    type,
+    notes:   payload.notes ?? '',
+  }
+  _contributions.push(entry)
+
+  return { contribution: entry, goal: enrichGoal(_savings[gIdx]) }
+}
+
+// ── Private goal helper ───────────────────────────────────────
+
+function enrichGoal(g) {
+  const pct       = g.target_amount > 0 ? Math.min(100, (g.current_amount / g.target_amount) * 100) : 0
+  const remaining = Math.max(0, g.target_amount - g.current_amount)
+  const reached   = g.current_amount >= g.target_amount
+
+  // Days remaining (null if no target date)
+  let days_remaining = null
+  if (g.target_date) {
+    const diff = new Date(g.target_date).getTime() - Date.now()
+    days_remaining = Math.ceil(diff / 86_400_000)
+  }
+
+  // Monthly contribution needed to reach the goal in time (estimate only).
+  let monthly_needed = null
+  if (!reached && days_remaining != null && days_remaining > 0) {
+    const months = days_remaining / 30.44
+    monthly_needed = months > 0 ? remaining / months : null
+  }
+
+  return {
+    ...g,
+    progress_pct:    Math.round(pct * 10) / 10,
+    remaining_amount: remaining,
+    reached,
+    days_remaining,
+    monthly_needed: monthly_needed != null ? Math.ceil(monthly_needed * 100) / 100 : null,
+  }
 }
 
 // ═══════════════════════════════════════════════════════════
