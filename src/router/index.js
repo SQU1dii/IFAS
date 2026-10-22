@@ -83,23 +83,23 @@ const routes = [
         meta: { title: 'Savings Goals' },
       },
 
-      // ── Phase 3 (stubs) ──────────────────────────────────────────────
+      // ── Phase 3 ──────────────────────────────────────────────────────
       {
         path: 'analytics',
         name: 'analytics',
-        component: () => import('@/components/layout/ComingSoonView.vue'),
+        component: () => import('@/views/AnalyticsView.vue'),
         meta: { title: 'Analytics' },
       },
       {
         path: 'reports',
         name: 'reports',
-        component: () => import('@/components/layout/ComingSoonView.vue'),
+        component: () => import('@/views/ReportsView.vue'),
         meta: { title: 'Reports' },
       },
       {
         path: 'intelligence',
         name: 'intelligence',
-        component: () => import('@/components/layout/ComingSoonView.vue'),
+        component: () => import('@/views/IntelligenceView.vue'),
         meta: { title: 'Financial Intelligence' },
       },
 
