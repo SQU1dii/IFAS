@@ -540,8 +540,8 @@ function strokeDash(pct) {
               v-if="!goalEditTarget"
               v-model="gForm.initial_amount"
               label="Initial deposit"
-              type="number" placeholder="0.00" min="0" step="0.01"
-              hint="Optional — how much you're putting in right now."
+              type="number" placeholder="e.g. 10000" min="0" step="1"
+              hint="Optional — how much you're putting in right now (KES)."
             />
             <div class="field">
               <label class="field-label">Notes <span class="text-slate-400 font-normal">(optional)</span></label>

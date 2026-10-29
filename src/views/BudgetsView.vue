@@ -462,8 +462,8 @@ const categoryName = (id) =>
               <BaseInput
                 v-model="form.limit"
                 label="Monthly / yearly limit"
-                type="number" placeholder="0.00"
-                min="0.01" step="0.01" required
+                type="number" placeholder="e.g. 15000"
+                min="1" step="1" required
                 :error="fieldErr('limit')"
                 @blur="touched.limit = true"
               />

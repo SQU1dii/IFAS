@@ -68,7 +68,7 @@ const options = {
       padding: 10,
       cornerRadius: 8,
       callbacks: {
-        label: (ctx) => ` ${ctx.dataset.label}: $${ctx.parsed.y.toLocaleString('en-US', { minimumFractionDigits: 2 })}`,
+        label: (ctx) => ` ${ctx.dataset.label}: KSh ${ctx.parsed.y.toLocaleString('en-KE', { minimumFractionDigits: 0 })}`,
       },
     },
   },
@@ -83,7 +83,7 @@ const options = {
       ticks: {
         font: { family: 'Inter', size: 11 },
         color: '#94a3b8',
-        callback: (v) => `$${(v / 1000).toFixed(0)}k`,
+        callback: (v) => `KSh ${(v / 1000).toFixed(0)}k`,
       },
       border: { display: false },
     },

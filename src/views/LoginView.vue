@@ -108,7 +108,7 @@ const sessionExpired = computed(() => route.query.expired === '1')
             v-model="form.email"
             label="Email address"
             type="email"
-            placeholder="you@example.com"
+            placeholder="you@example.co.ke"
             autocomplete="email"
             required
             :error="touched.email ? errors.email : ''"

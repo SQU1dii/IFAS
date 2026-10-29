@@ -125,7 +125,7 @@ const pwStrengthColor = computed(() => {
             v-model="form.name"
             label="Full name"
             type="text"
-            placeholder="Jordan Avery"
+            placeholder="e.g. Amara Wanjiku"
             autocomplete="name"
             required
             :error="touched.name ? errors.name : ''"
@@ -136,7 +136,7 @@ const pwStrengthColor = computed(() => {
             v-model="form.email"
             label="Email address"
             type="email"
-            placeholder="you@example.com"
+            placeholder="you@example.co.ke"
             autocomplete="email"
             required
             :error="touched.email ? errors.email : ''"

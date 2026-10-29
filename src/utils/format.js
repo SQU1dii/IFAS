@@ -4,25 +4,32 @@
  * presentation stays consistent across the app.
  */
 
-const DEFAULT_CURRENCY = import.meta.env.VITE_DEFAULT_CURRENCY || 'USD'
+const DEFAULT_CURRENCY = import.meta.env.VITE_DEFAULT_CURRENCY || 'KES'
 
 /**
  * Format a number as currency.
  * @param {number} amount
- * @param {string} [currency] - ISO 4217 code, defaults to env or USD
+ * @param {string} [currency] - ISO 4217 code, defaults to env or KES
  * @returns {string}
+ *
+ * KES formatting: en-KE locale produces "KSh 42,000" (no decimals for
+ * whole-shilling amounts, matching standard Kenyan display).
+ * Other currencies fall back to en-US formatting.
  */
 export function formatCurrency(amount, currency = DEFAULT_CURRENCY) {
   const value = Number.isFinite(amount) ? amount : 0
   try {
-    return new Intl.NumberFormat('en-US', {
+    const locale = currency === 'KES' ? 'en-KE' : 'en-US'
+    // For KES drop cents when the value is a whole number; keep 2 dp otherwise.
+    const hasCents = (value % 1 !== 0)
+    return new Intl.NumberFormat(locale, {
       style: 'currency',
       currency,
-      minimumFractionDigits: 2,
+      minimumFractionDigits: hasCents ? 2 : 0,
       maximumFractionDigits: 2,
     }).format(value)
   } catch {
-    return `$${value.toFixed(2)}`
+    return `KSh ${value.toFixed(0)}`
   }
 }
 

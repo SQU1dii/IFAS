@@ -93,7 +93,7 @@ function reset() {
 }
 
 const TEMPLATE_HEADERS = 'date,description,amount,type,account_id,category_id,destination_account_id,notes'
-const TEMPLATE_EXAMPLE = '2025-10-01,Grocery Run,85.50,expense,acc-checking,cat-groceries,,Weekly shop'
+const TEMPLATE_EXAMPLE = '2025-10-01,Naivas Supermarket,3500,expense,acc-equity,cat-groceries,,Weekly groceries'
 
 function downloadTemplate() {
   const blob = new Blob([TEMPLATE_HEADERS + '\n' + TEMPLATE_EXAMPLE], { type: 'text/csv' })
@@ -215,7 +215,7 @@ function downloadTemplate() {
                     <td class="px-3 py-2 text-slate-400">{{ r.row }}</td>
                     <td class="px-3 py-2 font-mono text-slate-700">{{ r.data.date }}</td>
                     <td class="px-3 py-2 text-navy-800 max-w-[140px] truncate">{{ r.data.description }}</td>
-                    <td class="px-3 py-2 text-right font-mono text-navy-700">${{ Number(r.data.amount || 0).toFixed(2) }}</td>
+                    <td class="px-3 py-2 text-right font-mono text-navy-700">KSh {{ Number(r.data.amount || 0).toLocaleString('en-KE', { minimumFractionDigits: 0 }) }}</td>
                     <td class="px-3 py-2 text-slate-600 capitalize">{{ r.data.type }}</td>
                     <td class="px-3 py-2">
                       <span v-if="r.valid" class="text-emerald-600 font-medium">✓ Valid</span>

@@ -38,19 +38,21 @@ onMounted(load)
 
 // ── Account type options ──────────────────────────────────
 const typeOptions = [
-  { value: 'checking', label: 'Checking'    },
-  { value: 'savings',  label: 'Savings'     },
-  { value: 'credit',   label: 'Credit Card' },
-  { value: 'cash',     label: 'Cash'        },
-  { value: 'investment', label: 'Investment' },
-  { value: 'other',    label: 'Other'       },
+  { value: 'checking',     label: 'Checking / Current' },
+  { value: 'savings',      label: 'Savings'            },
+  { value: 'mobile_money', label: 'Mobile Money (M-Pesa)' },
+  { value: 'credit',       label: 'Credit Card'        },
+  { value: 'cash',         label: 'Cash'               },
+  { value: 'investment',   label: 'Investment / CMA'   },
+  { value: 'sacco',        label: 'SACCO'              },
+  { value: 'other',        label: 'Other'              },
 ]
 
 const accountTypeLabel = (t) =>
   typeOptions.find((o) => o.value === t)?.label ?? t
 
 const accountTypeBadge = (t) =>
-  ({ checking: 'green', savings: 'blue', credit: 'red', investment: 'purple', cash: 'neutral' })[t] ?? 'neutral'
+  ({ checking: 'green', savings: 'blue', mobile_money: 'green', credit: 'red', investment: 'purple', sacco: 'amber', cash: 'neutral' })[t] ?? 'neutral'
 
 // ── Add / Edit modal ──────────────────────────────────────
 const modalOpen     = ref(false)
@@ -59,7 +61,7 @@ const formLoading   = ref(false)
 const formApiError  = ref('')
 const formFieldErrs = ref({})
 
-const blank = () => ({ name: '', type: 'checking', currency: 'USD', balance: '', institution: '' })
+const blank = () => ({ name: '', type: 'checking', currency: 'KES', balance: '', institution: '' })
 const form    = reactive(blank())
 const touched = reactive({})
 
@@ -151,7 +153,7 @@ async function handleDeactivate() {
             <li v-for="acc in active" :key="acc.id" class="flex items-center gap-4 py-4">
               <!-- Icon -->
               <span class="shrink-0 h-10 w-10 rounded-xl bg-slate-100 flex items-center justify-center text-lg" aria-hidden="true">
-                {{ { checking: '🏦', savings: '💰', credit: '💳', investment: '📈', cash: '💵', other: '🏧' }[acc.type] ?? '🏧' }}
+                {{ { checking: '🏦', savings: '💰', mobile_money: '📱', credit: '💳', investment: '📈', sacco: '🤝', cash: '💵', other: '🏧' }[acc.type] ?? '🏧' }}
               </span>
               <!-- Info -->
               <div class="flex-1 min-w-0">
@@ -199,7 +201,7 @@ async function handleDeactivate() {
             <ul class="divide-y divide-slate-100">
               <li v-for="acc in inactive" :key="acc.id" class="flex items-center gap-4 py-3 opacity-60">
                 <span class="shrink-0 h-9 w-9 rounded-xl bg-slate-100 flex items-center justify-center text-base" aria-hidden="true">
-                  {{ { checking: '🏦', savings: '💰', credit: '💳' }[acc.type] ?? '🏧' }}
+                  {{ { checking: '🏦', savings: '💰', mobile_money: '📱', credit: '💳' }[acc.type] ?? '🏧' }}
                 </span>
                 <div class="flex-1 min-w-0">
                   <p class="text-sm font-medium text-navy-700 truncate">{{ acc.name }}</p>
@@ -229,10 +231,10 @@ async function handleDeactivate() {
             <BaseInput v-model="form.name" label="Account name" placeholder="e.g. Main Checking" required :error="fieldErr('name')" @blur="touched.name = true" />
             <div class="grid grid-cols-2 gap-4">
               <BaseSelect v-model="form.type" label="Type" required :options="typeOptions" :error="fieldErr('type')" @blur="touched.type = true" />
-              <BaseInput v-model="form.currency" label="Currency" placeholder="USD" required :error="fieldErr('currency')" @blur="touched.currency = true" />
+              <BaseInput v-model="form.currency" label="Currency" placeholder="KES" required :error="fieldErr('currency')" @blur="touched.currency = true" />
             </div>
-            <BaseInput v-model="form.balance" label="Opening balance" type="number" placeholder="0.00" hint="Use a negative value for credit card debt." />
-            <BaseInput v-model="form.institution" label="Institution" placeholder="e.g. Chase Bank" />
+            <BaseInput v-model="form.balance" label="Opening balance" type="number" placeholder="e.g. 50000" hint="Use a negative value for credit card debt. Amount in KES." />
+            <BaseInput v-model="form.institution" label="Institution" placeholder="e.g. Equity Bank, Safaricom M-Pesa" />
           </div>
           <div class="px-6 py-4 border-t border-slate-100 bg-slate-50 flex justify-end gap-3">
             <BaseButton variant="secondary" @click="closeModal">Cancel</BaseButton>

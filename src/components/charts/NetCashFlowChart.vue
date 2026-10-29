@@ -74,7 +74,7 @@ const options = {
         label: (ctx) => {
           const v = ctx.parsed.y
           const sign = v >= 0 ? '+' : ''
-          return ` Net: ${sign}$${Math.abs(v).toLocaleString('en-US', { minimumFractionDigits: 2 })}`
+          return ` Net: ${sign}KSh ${Math.abs(v).toLocaleString('en-KE', { minimumFractionDigits: 0 })}`
         },
       },
     },
@@ -90,7 +90,7 @@ const options = {
       ticks: {
         font: { family: 'Inter', size: 11 },
         color: '#94a3b8',
-        callback: (v) => `$${(v / 1000).toFixed(0)}k`,
+        callback: (v) => `KSh ${(v / 1000).toFixed(0)}k`,
       },
       border: { display: false },
     },

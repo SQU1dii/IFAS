@@ -52,7 +52,7 @@ function _mockExportCsv(params, summary) {
   if (!summary) return
 
   const rows = [
-    ['IFAS Financial Report'],
+    ['IFAS Financial Report — Kenya'],
     ['Period', params.from ?? '', 'to', params.to ?? ''],
     [],
     ['SUMMARY'],

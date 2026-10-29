@@ -46,7 +46,7 @@ const props = defineProps({
   labels:     { type: Array,    default: () => [] },
   height:     { type: String,   default: 'h-64'   },
   loading:    { type: Boolean,  default: false     },
-  yPrefix:    { type: String,   default: '$'       },
+  yPrefix:    { type: String,   default: 'KSh '    },
   showLegend: { type: Boolean,  default: true      },
   yFormat:    { type: Function, default: null      },
 })

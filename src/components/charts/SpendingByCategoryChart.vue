@@ -68,7 +68,7 @@ const options = {
         label: (ctx) => {
           const total = ctx.dataset.data.reduce((a, b) => a + b, 0)
           const pct = total > 0 ? ((ctx.parsed / total) * 100).toFixed(1) : 0
-          return ` $${ctx.parsed.toLocaleString('en-US', { minimumFractionDigits: 2 })} (${pct}%)`
+          return ` KSh ${ctx.parsed.toLocaleString('en-KE', { minimumFractionDigits: 0 })} (${pct}%)`
         },
       },
     },

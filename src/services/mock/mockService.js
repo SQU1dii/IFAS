@@ -291,7 +291,7 @@ export async function mockCreateAccount(payload) {
     id: nextId('acc'),
     name: payload.name,
     type: payload.type,
-    currency: payload.currency ?? 'USD',
+    currency: payload.currency ?? 'KES',
     balance: Number(payload.balance ?? 0),
     institution: payload.institution ?? '',
     is_active: true,
@@ -654,7 +654,7 @@ function buildInsights(period, budgets, previous) {
 
   if (period.spendingByCategory.length) {
     const top = period.spendingByCategory[0]
-    insights.push({ id: 'i-top-cat', type: 'info', icon: 'info', title: 'Top spending category', message: `${top.name} is your largest expense at $${top.amount.toFixed(2)}.` })
+    insights.push({ id: 'i-top-cat', type: 'info', icon: 'info', title: 'Top spending category', message: `${top.name} is your largest expense at KSh ${top.amount.toLocaleString('en-KE', { minimumFractionDigits: 0 })}.` })
   }
 
   if (previous) {
