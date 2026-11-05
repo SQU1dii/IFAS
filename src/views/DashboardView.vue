@@ -2,20 +2,28 @@
 /**
  * DashboardView — workspace-type router.
  *
- * This view is a thin dispatcher. It renders the correct dashboard
- * component based on the active workspace type so the router only
- * needs one /dashboard route.
+ * Thin dispatcher that renders the correct dashboard component based on
+ * the active workspace type:
  *
- *   PERSONAL     → PersonalDashboard (existing F3 implementation)
+ *   PERSONAL     → PersonalDashboardView (F3)
  *   BUSINESS     → BusinessDashboardView (F4)
- *   ORGANIZATION → OrgDashboardView (F5)
+ *   ORGANIZATION → OrgDashboardView      (F5)
+ *
+ * Uses defineAsyncComponent so each sub-dashboard is its own lazy-loaded
+ * chunk (the router already splits DashboardView, but this keeps the
+ * three dashboards in separate chunks too).
  */
-import { computed }          from 'vue'
+import { computed, defineAsyncComponent } from 'vue'
 import { useWorkspaceStore } from '@/stores/workspace'
-import BaseSpinner           from '@/components/common/BaseSpinner.vue'
+import BaseSpinner from '@/components/common/BaseSpinner.vue'
 
 const ws = useWorkspaceStore()
 const wsType = computed(() => ws.wsType)
+
+// Lazy-loaded — each dashboard is its own JS chunk.
+const PersonalDashboard = defineAsyncComponent(() => import('./PersonalDashboardView.vue'))
+const BusinessDashboard  = defineAsyncComponent(() => import('./BusinessDashboardView.vue'))
+const OrgDashboard       = defineAsyncComponent(() => import('./OrgDashboardView.vue'))
 </script>
 
 <template>
@@ -25,19 +33,19 @@ const wsType = computed(() => ws.wsType)
       <BaseSpinner size="xl" label="Loading workspace…" />
     </div>
 
-    <!-- Personal dashboard (original F3 implementation) -->
-    <Suspense v-else-if="wsType === 'PERSONAL'">
-      <component :is="() => import('./PersonalDashboardView.vue')" />
-    </Suspense>
+    <!-- Personal dashboard (F3) -->
+    <PersonalDashboard v-else-if="wsType === 'PERSONAL'" />
 
-    <!-- Business dashboard F4 -->
-    <Suspense v-else-if="wsType === 'BUSINESS'">
-      <component :is="() => import('./BusinessDashboardView.vue')" />
-    </Suspense>
+    <!-- Business dashboard (F4) -->
+    <BusinessDashboard v-else-if="wsType === 'BUSINESS'" />
 
-    <!-- Organisation dashboard F5 -->
-    <Suspense v-else-if="wsType === 'ORGANIZATION'">
-      <component :is="() => import('./OrgDashboardView.vue')" />
-    </Suspense>
+    <!-- Organisation dashboard (F5) -->
+    <OrgDashboard v-else-if="wsType === 'ORGANIZATION'" />
+
+    <!-- Fallback -->
+    <div v-else class="flex flex-col items-center justify-center min-h-[40vh] text-slate-400 text-sm">
+      <p>Unknown workspace type: {{ wsType }}</p>
+      <p class="text-xs mt-1">Try selecting a different workspace.</p>
+    </div>
   </div>
 </template>
