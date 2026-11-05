@@ -1,68 +1,81 @@
 /**
- * Financial Intelligence service.
+ * Financial Intelligence service — workspace-scoped.
  *
- * POST /intelligence/insights              → rule-based spending insights
- * POST /intelligence/forecast              → projected income/expenses (estimates)
- * POST /intelligence/anomalies/analyze     → transactions flagged for review
- * POST /intelligence/categorize            → per-category spending patterns
+ * GET  /workspaces/:id/forecast?category=&horizon=
+ * GET  /workspaces/:id/alerts            (open alerts)
+ * GET  /workspaces/:id/recommendations
+ * POST /workspaces/:id/alerts/:aid       { action: 'review'|'dismiss' }
+ * POST /workspaces/:id/assistant/messages
  *
- * ⚠ Contract rules enforced here and in the view:
- *  1. Every response item carries is_estimate: true|false.
- *     Views MUST render estimate items with a distinct visual treatment.
- *  2. Forecasts include uncertainty_pct and a disclaimer string.
- *     Both must be shown to the user.
- *  3. Anomalies are framed as "for review", never as fraud detection.
- *  4. When the backend returns { insufficient_data: true } the view
- *     shows a proper empty state — never invented data.
- *  5. source: 'rule_based' | 'model' is shown on each item so the user
- *     knows where the insight came from.
+ * Contract rules:
+ *  1. is_estimate: true items must be visually distinct in the view.
+ *  2. Forecasts carry uncertainty_pct and a disclaimer string.
+ *  3. Anomalies / alerts are framed as "for review", never as fraud.
+ *  4. insufficient_data → empty state, never invented data.
+ *  5. source: 'rule_based' | 'model' shown on each item.
  */
 import api from './api'
+import { useWorkspaceStore } from '@/stores/workspace'
 import {
   mockGetInsights,
   mockGetForecast,
   mockGetAnomalies,
   mockGetSpendingPatterns,
+  mockListAlerts,
+  mockUpdateAlert,
+  mockListRecommendations,
 } from './mock/mockService'
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true'
 
+function wsPath(path = '') {
+  const ws = useWorkspaceStore()
+  return `/workspaces/${ws.wsId}${path}`
+}
+
 export default {
-  /**
-   * @param {{ from, to }} params
-   */
   async getInsights(params = {}) {
     if (USE_MOCK) return mockGetInsights(params)
-    const res = await api.post('/intelligence/insights', params)
+    const res = await api.get(wsPath('/insights'), { params })
     return res.data
   },
 
-  /**
-   * @param {{ horizon_months }} params  (default 3)
-   * Returns { forecast[], based_on_months, disclaimer, insufficient_data? }
-   */
   async getForecast(params = {}) {
     if (USE_MOCK) return mockGetForecast(params)
-    const res = await api.post('/intelligence/forecast', params)
+    const res = await api.get(wsPath('/forecast'), { params })
     return res.data
   },
 
-  /**
-   * @param {{ from, to }} params
-   * Returns [] when no anomalies found — view must show empty state.
-   */
   async getAnomalies(params = {}) {
     if (USE_MOCK) return mockGetAnomalies(params)
-    const res = await api.post('/intelligence/anomalies/analyze', params)
+    const res = await api.get(wsPath('/anomalies'), { params })
     return res.data
   },
 
-  /**
-   * @param {{ months }} params
-   */
   async getSpendingPatterns(params = {}) {
     if (USE_MOCK) return mockGetSpendingPatterns(params)
-    const res = await api.post('/intelligence/categorize', params)
+    const res = await api.get(wsPath('/patterns'), { params })
+    return res.data
+  },
+
+  async listAlerts() {
+    const ws = useWorkspaceStore()
+    if (USE_MOCK) return mockListAlerts(ws.wsId)
+    const res = await api.get(wsPath('/alerts'))
+    return res.data
+  },
+
+  async updateAlert(alertId, action) {
+    const ws = useWorkspaceStore()
+    if (USE_MOCK) return mockUpdateAlert(ws.wsId, alertId, action)
+    const res = await api.patch(wsPath(`/alerts/${alertId}`), { action })
+    return res.data
+  },
+
+  async getRecommendations() {
+    const ws = useWorkspaceStore()
+    if (USE_MOCK) return mockListRecommendations(ws.wsId)
+    const res = await api.get(wsPath('/recommendations'))
     return res.data
   },
 }

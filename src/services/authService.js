@@ -1,11 +1,6 @@
 /**
  * Authentication service.
- *
- * Mock mode (VITE_USE_MOCK=true) → dev-only mock layer.
- * Real mode                      → Express API via centralized Axios client.
- *
- * All mock imports are static so Vite bundles them consistently
- * (no dynamic import + Vite chunk warnings).
+ * Paths: /auth/... (NOT workspace-scoped — auth is global).
  */
 import api from './api'
 import {
@@ -26,7 +21,7 @@ export default {
   async login(credentials) {
     if (USE_MOCK) return mockLogin(credentials)
     const res = await api.post('/auth/login', credentials)
-    return res.data // { accessToken, user }
+    return res.data
   },
 
   async register(payload) {
@@ -42,9 +37,8 @@ export default {
 
   async refreshToken() {
     if (USE_MOCK) return mockRefreshToken()
-    // withCredentials is set on the Axios instance, so the cookie is sent.
     const res = await api.post('/auth/refresh')
-    return res.data // { accessToken, user }
+    return res.data
   },
 
   async forgotPassword(email) {
@@ -54,7 +48,6 @@ export default {
   },
 
   async resetPassword(payload) {
-    // payload: { token, password, confirmPassword }
     if (USE_MOCK) return mockResetPassword(payload)
     const res = await api.post('/auth/reset-password', payload)
     return res.data
@@ -62,22 +55,23 @@ export default {
 
   async getProfile() {
     if (USE_MOCK) return { ...MOCK_USER }
-    const res = await api.get('/profile')
+    const res = await api.get('/auth/me')
     return res.data
   },
 
   async updateProfile(payload) {
     if (USE_MOCK) return { ...MOCK_USER, ...payload }
-    const res = await api.put('/profile', payload)
+    const res = await api.patch('/auth/me', payload)
     return res.data
   },
 
   async changePassword(payload) {
     if (USE_MOCK) return { message: 'Password updated.' }
-    const res = await api.put('/profile/password', payload)
+    const res = await api.patch('/auth/me/password', payload)
     return res.data
   },
 
+  // Reference data — workspace-independent (global category/account lists).
   async getCategories() {
     if (USE_MOCK) return mockGetCategories()
     const res = await api.get('/categories')

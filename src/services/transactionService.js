@@ -1,14 +1,16 @@
 /**
- * Transaction service — all transaction-related API calls.
+ * Transaction service — workspace-scoped.
+ * All paths: /workspaces/:id/transactions
  *
  * Income and Expenses pages pass { type: 'income' } / { type: 'expense' }
  * as a filter — no separate endpoints needed.
  *
- * Transfers: the form sets type='transfer', clears category_id, and
- * populates destination_account_id. The backend enforces this; we mirror
- * it here for the mock and for the field names sent to the real API.
+ * Void: POST /workspaces/:id/transactions/:tid/void
+ * CSV import step 1: POST /workspaces/:id/imports (preview)
+ * CSV import step 2: POST /workspaces/:id/imports/:iid/confirm
  */
 import api from './api'
+import { useWorkspaceStore } from '@/stores/workspace'
 import {
   mockGetTransactions,
   mockGetTransaction,
@@ -21,59 +23,68 @@ import {
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true'
 
+function wsPath(path = '') {
+  const ws = useWorkspaceStore()
+  return `/workspaces/${ws.wsId}${path}`
+}
+
 export default {
-  /**
-   * List transactions with optional filters.
-   * @param {object} params  { page, page_size, type, category_id, account_id,
-   *                           search, from, to }
-   * @returns {{ data: Transaction[], meta: PaginationMeta }}
-   */
   async list(params = {}) {
     if (USE_MOCK) return mockGetTransactions(params)
-    const res = await api.get('/transactions', { params })
-    return res // already unwrapped: { data, meta }
+    const res = await api.get(wsPath('/transactions'), { params })
+    return res
   },
 
   async get(id) {
     if (USE_MOCK) return mockGetTransaction(id)
-    const res = await api.get(`/transactions/${id}`)
+    const res = await api.get(wsPath(`/transactions/${id}`))
     return res.data
   },
 
   async create(payload) {
     if (USE_MOCK) return mockCreateTransaction(payload)
-    const res = await api.post('/transactions', payload)
+    const res = await api.post(wsPath('/transactions'), payload)
     return res.data
   },
 
   async update(id, payload) {
     if (USE_MOCK) return mockUpdateTransaction(id, payload)
-    const res = await api.put(`/transactions/${id}`, payload)
+    const res = await api.patch(wsPath(`/transactions/${id}`), payload)
     return res.data
   },
 
   async remove(id) {
     if (USE_MOCK) return mockDeleteTransaction(id)
-    await api.delete(`/transactions/${id}`)
+    await api.delete(wsPath(`/transactions/${id}`))
   },
 
-  /**
-   * Step 1 of CSV import: send raw parsed rows to the backend for validation.
-   * Returns { preview: Row[], total, valid } where each Row has { row, data, errors, valid }.
-   */
-  async importPreview(rows) {
-    if (USE_MOCK) return mockCsvPreview(rows)
-    const res = await api.post('/transactions/import/preview', { rows })
+  /** POST /workspaces/:id/transactions/:tid/void */
+  async void(id) {
+    if (USE_MOCK) {
+      // In mock mode, treat void as a soft-delete by adding a voided flag.
+      return mockDeleteTransaction(id)
+    }
+    const res = await api.post(wsPath(`/transactions/${id}/void`))
     return res.data
   },
 
   /**
-   * Step 2 of CSV import: confirm only the valid rows from the preview.
-   * Returns { imported: number, transactions: Transaction[] }.
+   * CSV import step 1 — POST /workspaces/:id/imports
+   * Returns { import_id, preview: Row[], total, valid, rejected }
    */
-  async importConfirm(validRows) {
+  async importPreview(rows) {
+    if (USE_MOCK) return mockCsvPreview(rows)
+    const res = await api.post(wsPath('/imports'), { rows })
+    return res.data
+  },
+
+  /**
+   * CSV import step 2 — POST /workspaces/:id/imports/:iid/confirm
+   * Returns { imported, transactions[] }
+   */
+  async importConfirm(importId, validRows) {
     if (USE_MOCK) return mockCsvConfirm(validRows)
-    const res = await api.post('/transactions/import/confirm', { rows: validRows.map((r) => r.data) })
+    const res = await api.post(wsPath(`/imports/${importId}/confirm`))
     return res.data
   },
 }

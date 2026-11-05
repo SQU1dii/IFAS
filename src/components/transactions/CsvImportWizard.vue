@@ -101,6 +101,37 @@ function downloadTemplate() {
   a.download = 'ifas-import-template.csv'; a.click()
   URL.revokeObjectURL(a.href)
 }
+
+function downloadRejected() {
+  if (!preview.value?.preview) return
+  const rejected = preview.value.preview.filter((r) => !r.valid)
+  if (!rejected.length) return
+
+  // Build CSV: original row data + a "rejection_reasons" column
+  const headers = ['date', 'description', 'amount', 'type', 'account_id', 'category_id', 'destination_account_id', 'notes', 'rejection_reasons']
+  const rows = rejected.map((r) => [
+    r.data.date         ?? '',
+    r.data.description  ?? '',
+    r.data.amount       ?? '',
+    r.data.type         ?? '',
+    r.data.account_id   ?? '',
+    r.data.category_id  ?? '',
+    r.data.destination_account_id ?? '',
+    r.data.notes        ?? '',
+    r.errors.map((e) => e.message).join('; '),
+  ])
+
+  const csv = [headers, ...rows]
+    .map((row) => row.map((v) => `"${String(v).replace(/"/g, '""')}"`).join(','))
+    .join('\n')
+
+  const blob = new Blob([csv], { type: 'text/csv' })
+  const a = document.createElement('a')
+  a.href = URL.createObjectURL(blob)
+  a.download = 'ifas-import-rejected.csv'
+  a.click()
+  URL.revokeObjectURL(a.href)
+}
 </script>
 
 <template>
@@ -262,6 +293,10 @@ function downloadTemplate() {
             </template>
             <template v-else-if="step === 2">
               <BaseButton variant="secondary" @click="step = 1">Back</BaseButton>
+              <BaseButton v-if="invalidRows.length" variant="ghost" size="sm" @click="downloadRejected">
+                <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12M12 16.5V3" /></svg>
+                Download rejected ({{ invalidRows.length }})
+              </BaseButton>
               <BaseButton variant="primary" :loading="loading" :disabled="!validRows.length" @click="handleConfirm">
                 Import {{ validRows.length }} row{{ validRows.length !== 1 ? 's' : '' }}
               </BaseButton>

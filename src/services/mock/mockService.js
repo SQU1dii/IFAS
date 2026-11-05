@@ -1096,3 +1096,245 @@ export async function mockGetSpendingPatterns({ months = 6 } = {}) {
 
   return patterns.sort((a, b) => b.total_spent - a.total_spent)
 }
+
+// ═══════════════════════════════════════════════════════════
+//  Workspaces, Members, Departments, Alerts, Recommendations
+// ═══════════════════════════════════════════════════════════
+
+import {
+  MOCK_WORKSPACES,
+  MOCK_MEMBERS,
+  MOCK_DEPARTMENTS,
+  MOCK_ALERTS,
+  MOCK_RECOMMENDATIONS,
+  MOCK_BUSINESS_SUMMARY,
+  MOCK_ORG_SUMMARY,
+} from './mockData'
+
+let _workspaces   = MOCK_WORKSPACES.map((w) => ({ ...w }))
+let _members      = JSON.parse(JSON.stringify(MOCK_MEMBERS))
+let _departments  = MOCK_DEPARTMENTS.map((d) => ({ ...d }))
+let _alerts       = MOCK_ALERTS.map((a) => ({ ...a }))
+
+// ── Workspaces ────────────────────────────────────────────────
+export async function mockListWorkspaces() {
+  await delay(300)
+  return [..._workspaces]
+}
+
+export async function mockGetWorkspace(id) {
+  await delay(250)
+  const ws = _workspaces.find((w) => w.id === id)
+  if (!ws) throw { message: 'Workspace not found.', status: 404 }
+  return { ...ws }
+}
+
+export async function mockCreateWorkspace(payload) {
+  await delay()
+  const ws = {
+    id: nextId('ws'),
+    name: payload.name,
+    type: payload.type,
+    currency: payload.currency ?? 'KES',
+    created_at: new Date().toISOString().slice(0, 10),
+    my_role: 'owner',
+    my_permissions: [
+      'transactions.read', 'transactions.write', 'transactions.void',
+      'budgets.read', 'budgets.write',
+      'members.read', 'members.write',
+      'departments.read', 'departments.write',
+      'reports.read', 'settings.write',
+    ],
+  }
+  _workspaces.push(ws)
+  return ws
+}
+
+// ── Members ────────────────────────────────────────────────────
+export async function mockListMembers(wsId) {
+  await delay()
+  return (_members[wsId] ?? []).map((m) => ({ ...m }))
+}
+
+export async function mockInviteMember(wsId, payload) {
+  await delay()
+  const member = {
+    id: nextId('mem'),
+    user_id: nextId('user'),
+    name: payload.name ?? payload.email.split('@')[0],
+    email: payload.email,
+    role: payload.role ?? 'member',
+    joined_at: new Date().toISOString().slice(0, 10),
+  }
+  if (!_members[wsId]) _members[wsId] = []
+  _members[wsId].push(member)
+  return member
+}
+
+export async function mockUpdateMemberRole(wsId, memberId, role) {
+  await delay()
+  const list = _members[wsId] ?? []
+  const idx = list.findIndex((m) => m.id === memberId)
+  if (idx === -1) throw { message: 'Member not found.', status: 404 }
+  list[idx] = { ...list[idx], role }
+  return list[idx]
+}
+
+export async function mockRemoveMember(wsId, memberId) {
+  await delay()
+  if (!_members[wsId]) return {}
+  _members[wsId] = _members[wsId].filter((m) => m.id !== memberId)
+  return {}
+}
+
+// ── Departments ────────────────────────────────────────────────
+export async function mockListDepartments(wsId) {
+  await delay()
+  return _departments
+    .filter((d) => d.workspace_id === wsId)
+    .map((d) => ({
+      ...d,
+      utilization_pct: d.budget > 0 ? Math.round((d.spent / d.budget) * 100 * 10) / 10 : 0,
+      remaining: d.budget - d.spent,
+      status: d.spent > d.budget ? 'over' : d.spent / d.budget >= 0.8 ? 'warning' : 'on_track',
+    }))
+}
+
+export async function mockCreateDepartment(wsId, payload) {
+  await delay()
+  const dept = {
+    id: nextId('dept'),
+    workspace_id: wsId,
+    name: payload.name,
+    budget: Number(payload.budget ?? 0),
+    spent: 0,
+    head_name: payload.head_name ?? '',
+  }
+  _departments.push(dept)
+  return dept
+}
+
+export async function mockUpdateDepartment(wsId, deptId, payload) {
+  await delay()
+  const idx = _departments.findIndex((d) => d.id === deptId && d.workspace_id === wsId)
+  if (idx === -1) throw { message: 'Department not found.', status: 404 }
+  _departments[idx] = { ..._departments[idx], ...payload }
+  return _departments[idx]
+}
+
+export async function mockDeleteDepartment(wsId, deptId) {
+  await delay()
+  _departments = _departments.filter((d) => !(d.id === deptId && d.workspace_id === wsId))
+  return {}
+}
+
+// ── Alerts ─────────────────────────────────────────────────────
+export async function mockListAlerts(wsId) {
+  await delay(300)
+  return _alerts
+    .filter((a) => a.workspace_id === wsId)
+    .map((a) => ({ ...a }))
+}
+
+export async function mockUpdateAlert(wsId, alertId, action) {
+  // action: 'review' | 'dismiss'
+  await delay(200)
+  const idx = _alerts.findIndex((a) => a.id === alertId && a.workspace_id === wsId)
+  if (idx === -1) throw { message: 'Alert not found.', status: 404 }
+  _alerts[idx] = { ..._alerts[idx], status: action === 'dismiss' ? 'dismissed' : 'reviewed' }
+  return _alerts[idx]
+}
+
+// ── Recommendations ────────────────────────────────────────────
+export async function mockListRecommendations(wsId) {
+  await delay(350)
+  return MOCK_RECOMMENDATIONS.filter((r) => r.workspace_id === wsId)
+}
+
+// ── Business dashboard ─────────────────────────────────────────
+export async function mockGetBusinessDashboard(wsId, params = {}) {
+  await delay()
+  const monthly = buildMonthlySeries(_transactions, 6)
+  const budgets = computeBudgetUtilization(_transactions, new Date().toISOString().slice(0, 10))
+  const alerts  = _alerts.filter((a) => a.workspace_id === wsId && a.status === 'open')
+
+  return {
+    ...MOCK_BUSINESS_SUMMARY,
+    open_alerts: alerts.length,
+    monthly_series: monthly,
+    budget_vs_actual: budgets.slice(0, 6).map((b) => ({
+      category_name: b.category_name,
+      budget:  b.limit,
+      actual:  b.spent,
+      variance: b.remaining,
+    })),
+    top_expense_categories: monthly.length
+      ? aggregate(_transactions,
+          monthly[0]?.month + '-01',
+          new Date().toISOString().slice(0, 10)
+        ).spendingByCategory.slice(0, 5)
+      : [],
+    recent_alerts: alerts.slice(0, 3),
+  }
+}
+
+// ── Organisation dashboard ────────────────────────────────────
+export async function mockGetOrgDashboard(wsId, params = {}) {
+  await delay()
+  const depts = await mockListDepartments(wsId)
+  const alerts = _alerts.filter((a) => a.workspace_id === wsId && a.status === 'open')
+
+  // Build per-dept monthly trend (simplified — use transactions as proxy)
+  const monthly = buildMonthlySeries(_transactions, 6)
+
+  return {
+    ...MOCK_ORG_SUMMARY,
+    open_alerts: alerts.length,
+    departments: depts,
+    monthly_series: monthly,
+    recent_alerts: alerts.slice(0, 3),
+  }
+}
+
+// ── AI assistant ───────────────────────────────────────────────
+let _conversations = {}  // { [wsId]: [{ id, messages: [] }] }
+
+export async function mockGetConversations(wsId) {
+  await delay(200)
+  return (_conversations[wsId] ?? []).map((c) => ({ ...c, messages: [...c.messages] }))
+}
+
+export async function mockSendMessage(wsId, conversationId, content) {
+  await delay(900)
+
+  if (!_conversations[wsId]) _conversations[wsId] = []
+  let conv = _conversations[wsId].find((c) => c.id === conversationId)
+  if (!conv) {
+    conv = { id: conversationId ?? nextId('conv'), messages: [] }
+    _conversations[wsId].push(conv)
+  }
+
+  // Add user message
+  conv.messages.push({ id: nextId('msg'), role: 'user', content, created_at: new Date().toISOString() })
+
+  // Generate a canned assistant reply based on keywords
+  const lower = content.toLowerCase()
+  let reply = 'I can help you understand your finances. Try asking about your spending, budgets, savings goals, or income.'
+  if (lower.includes('transport') || lower.includes('matatu'))
+    reply = 'Your Transport / Matatu budget is currently at 70% utilization. You have KSh 3,600 remaining this month.'
+  else if (lower.includes('savings') || lower.includes('goal'))
+    reply = 'You have 4 active savings goals. Your Emergency Fund is 64% funded at KSh 192,000 of a KSh 300,000 target.'
+  else if (lower.includes('budget'))
+    reply = 'You have 9 active budgets. M-Pesa Send Money is at 89% — the closest to its limit this month.'
+  else if (lower.includes('income') || lower.includes('salary'))
+    reply = 'Your income this month is KSh 121,500 from salary. Your savings rate is 26.4%.'
+  else if (lower.includes('expense') || lower.includes('spent'))
+    reply = 'Your top expense categories this month are: Rent (KSh 42,000), Groceries (KSh 11,200), Transport (KSh 8,400).'
+  else if (lower.includes('forecast') || lower.includes('predict'))
+    reply = 'Based on the last 6 months, I estimate next month\'s expenses at approximately KSh 91,000 ± 8%. This is an estimate — actual results will vary.'
+
+  const assistantMsg = { id: nextId('msg'), role: 'assistant', content: reply, created_at: new Date().toISOString() }
+  conv.messages.push(assistantMsg)
+
+  return { conversation_id: conv.id, message: assistantMsg }
+}

@@ -43,7 +43,8 @@ export const tokenStore = {
 
 // ── Axios instance ────────────────────────────────────────
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000/api',
+  // Spec base: /api/v1  — VITE_API_URL should be http://host/api/v1
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1',
   headers: { 'Content-Type': 'application/json' },
   timeout: 15000,
   withCredentials: true, // send the HttpOnly refresh-token cookie on every req
@@ -132,16 +133,39 @@ api.interceptors.response.use(
 )
 
 // ── Error normalizer ──────────────────────────────────────
+/**
+ * Handles both response shapes:
+ *   Spec shape:    { error: { code, message, fields: { field: msg } } }
+ *   Legacy shape:  { success: false, message, errors: [{ field, message }] }
+ */
 function normalizeError(error) {
   const body = error?.response?.data
+
+  // Spec shape: { error: { code, message, fields } }
+  const specErr = body?.error
+  if (specErr) {
+    const fieldErrors = {}
+    if (specErr.fields && typeof specErr.fields === 'object') {
+      Object.entries(specErr.fields).forEach(([field, msg]) => {
+        fieldErrors[field] = msg
+      })
+    }
+    return {
+      message:     specErr.message || 'Something went wrong.',
+      code:        specErr.code    || null,
+      fieldErrors,
+      status:      error?.response?.status,
+      isNetworkError: false,
+    }
+  }
+
+  // Legacy shape: { success: false, message, errors: [{ field, message }] }
   const message =
     body?.message ||
     (error?.code === 'ECONNABORTED' ? 'The request timed out. Please try again.' : null) ||
     error?.message ||
     'Something went wrong. Please try again.'
 
-  // Map field-level errors from the backend onto a plain object so form
-  // components can do:  if (err.fieldErrors?.email) { … }
   const fieldErrors = {}
   if (Array.isArray(body?.errors)) {
     body.errors.forEach(({ field, message: msg }) => {
@@ -151,8 +175,9 @@ function normalizeError(error) {
 
   return {
     message,
+    code:        null,
     fieldErrors,
-    status: error?.response?.status,
+    status:      error?.response?.status,
     isNetworkError: !error?.response,
   }
 }

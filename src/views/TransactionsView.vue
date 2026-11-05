@@ -24,7 +24,10 @@ import TransactionModal     from '@/components/transactions/TransactionModal.vue
 import DeleteConfirmModal   from '@/components/transactions/DeleteConfirmModal.vue'
 import CsvImportWizard      from '@/components/transactions/CsvImportWizard.vue'
 
+import { useWorkspaceStore } from '@/stores/workspace'
+
 // ── Reference data ────────────────────────────────────────
+const ws         = useWorkspaceStore()
 const categories = ref([])
 const accounts   = ref([])
 
@@ -150,6 +153,25 @@ function onImportDone() {
   load()
 }
 
+// ── Void transaction ──────────────────────────────────────
+const voidTarget  = ref(null)
+const voidLoading = ref(false)
+const voidError   = ref('')
+
+function openVoid(txn)  { voidTarget.value = txn; voidError.value = '' }
+function closeVoid()    { voidTarget.value = null }
+
+async function handleVoid() {
+  voidLoading.value = true; voidError.value = ''
+  try {
+    await transactionService.void(voidTarget.value.id)
+    closeVoid()
+    load()
+  } catch (err) {
+    voidError.value = err?.message ?? 'Void failed.'
+  } finally { voidLoading.value = false }
+}
+
 // ── Summary counts (from meta) ────────────────────────────
 const totalLabel = computed(() =>
   meta.value?.total != null ? `${meta.value.total.toLocaleString()} transaction${meta.value.total !== 1 ? 's' : ''}` : ''
@@ -201,8 +223,10 @@ const totalLabel = computed(() =>
           :transactions="transactions"
           :loading="loading"
           :meta="meta"
+          :can-void="ws.can('transactions.void')"
           @edit="openEdit"
           @delete="openDelete"
+          @void="openVoid"
           @page="(p) => (page = p)"
         />
       </div>
@@ -228,6 +252,16 @@ const totalLabel = computed(() =>
       :message="deleteTarget ? 'Delete &quot;' + deleteTarget.description + '&quot;? This cannot be undone.' : ''"
       @close="closeDelete"
       @confirm="handleDelete"
+    />
+
+    <!-- Void confirm -->
+    <DeleteConfirmModal
+      :open="!!voidTarget"
+      :loading="voidLoading"
+      title="Void transaction"
+      :message="voidTarget ? 'Void &quot;' + voidTarget.description + '&quot;? Voided transactions remain visible but are excluded from totals. This cannot be undone.' : ''"
+      @close="closeVoid"
+      @confirm="handleVoid"
     />
 
     <!-- CSV import wizard -->

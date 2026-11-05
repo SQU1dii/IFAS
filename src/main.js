@@ -4,21 +4,27 @@ import { createPinia } from 'pinia'
 import App from './App.vue'
 import router from './router'
 import { useAuthStore } from '@/stores/auth'
+import { useWorkspaceStore } from '@/stores/workspace'
 
 import './assets/main.css'
 
 async function bootstrap() {
-  const app = createApp(App)
-  const pinia = createPinia()
+  const app    = createApp(App)
+  const pinia  = createPinia()
 
   app.use(pinia)
   app.use(router)
 
-  // Attempt to restore the session from the HttpOnly refresh-token cookie
-  // before the router fires its first navigation. This prevents a flash of
-  // the login page when the user has a valid session after a page refresh.
+  // 1. Restore the auth session from the HttpOnly refresh-token cookie.
   const auth = useAuthStore()
   await auth.restoreSession()
+
+  // 2. If the user is authenticated, try to restore the active workspace.
+  //    If neither succeeds the router guards redirect to /login or /workspaces.
+  if (auth.isLoggedIn) {
+    const ws = useWorkspaceStore()
+    await ws.restore()
+  }
 
   app.mount('#app')
 }

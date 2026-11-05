@@ -1,9 +1,17 @@
 /**
- * Dashboard service — analytics overview + reference-data helpers.
- * Calls GET /analytics/overview (mock: mockGetDashboard).
- * The frontend displays what the backend returns — it never recalculates totals.
+ * Dashboard service — workspace-scoped.
+ *
+ * GET /workspaces/:id/dashboard?from=&to=&department=&category=
+ *
+ * Returns a payload shaped for the active workspace type:
+ *   PERSONAL     → F3 personal summary
+ *   BUSINESS     → F4 business summary (via workspaceService)
+ *   ORGANIZATION → F5 org summary    (via workspaceService)
+ *
+ * The frontend DISPLAYS what the backend returns — never recalculates.
  */
 import api from './api'
+import { useWorkspaceStore } from '@/stores/workspace'
 import {
   mockGetDashboard,
   mockGetBudgets,
@@ -17,10 +25,15 @@ import {
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true'
 
+function wsPath(path = '') {
+  const ws = useWorkspaceStore()
+  return `/workspaces/${ws.wsId}${path}`
+}
+
 export default {
   async getOverview(range, comparison) {
     if (USE_MOCK) return mockGetDashboard(range, comparison)
-    const res = await api.get('/analytics/overview', {
+    const res = await api.get(wsPath('/dashboard'), {
       params: {
         from: range?.start, to: range?.end,
         comp_from: comparison?.start, comp_to: comparison?.end,
@@ -31,32 +44,31 @@ export default {
 
   async getBudgets() {
     if (USE_MOCK) return mockGetBudgets()
-    const res = await api.get('/budgets/status')
+    const res = await api.get(wsPath('/budgets/status'))
     return res.data
   },
 
   async getSavingsGoals() {
     if (USE_MOCK) return mockGetSavingsGoals()
-    const res = await api.get('/savings-goals')
+    const res = await api.get(wsPath('/savings-goals'))
     return res.data
   },
 
   async getCategories() {
     if (USE_MOCK) return mockGetCategories()
-    const res = await api.get('/categories')
+    const res = await api.get(wsPath('/categories'))
     return res.data
   },
 
   async getAccounts() {
     if (USE_MOCK) return mockGetAccounts()
-    const res = await api.get('/accounts')
+    const res = await api.get(wsPath('/accounts'))
     return res.data
   },
 
-  // ── Notifications ─────────────────────────────────────────
   async getNotifications() {
     if (USE_MOCK) return mockGetNotifications()
-    const res = await api.get('/notifications')
+    const res = await api.get('/notifications')  // global, not workspace-scoped
     return res.data
   },
 

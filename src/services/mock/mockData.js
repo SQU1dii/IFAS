@@ -395,3 +395,172 @@ export const MOCK_USER = {
     insight_notifications: true,
   },
 }
+
+// ── Workspaces ────────────────────────────────────────────────
+// Three workspace types, each with role + permission codes the server
+// would return for the current user.
+export const MOCK_WORKSPACES = [
+  {
+    id: 'ws-personal',
+    name: 'Amara — Personal',
+    type: 'PERSONAL',
+    currency: 'KES',
+    created_at: '2024-09-01',
+    my_role: 'owner',
+    my_permissions: [
+      'transactions.read', 'transactions.write', 'transactions.void',
+      'budgets.read', 'budgets.write',
+      'reports.read',
+      'settings.write',
+    ],
+  },
+  {
+    id: 'ws-business',
+    name: 'Wanjiku Ventures Ltd',
+    type: 'BUSINESS',
+    currency: 'KES',
+    created_at: '2024-10-01',
+    my_role: 'owner',
+    my_permissions: [
+      'transactions.read', 'transactions.write', 'transactions.void',
+      'budgets.read', 'budgets.write',
+      'members.read', 'members.write',
+      'reports.read',
+      'settings.write',
+    ],
+  },
+  {
+    id: 'ws-org',
+    name: 'Nairobi Youth Foundation',
+    type: 'ORGANIZATION',
+    currency: 'KES',
+    created_at: '2025-01-15',
+    my_role: 'admin',
+    my_permissions: [
+      'transactions.read', 'transactions.write', 'transactions.void',
+      'budgets.read', 'budgets.write',
+      'members.read', 'members.write',
+      'departments.read', 'departments.write',
+      'reports.read',
+    ],
+  },
+]
+
+// ── Members ───────────────────────────────────────────────────
+export const MOCK_MEMBERS = {
+  'ws-business': [
+    { id: 'mem-1', user_id: 'user-001', name: 'Amara Wanjiku', email: 'amara.wanjiku@example.co.ke', role: 'owner',  joined_at: '2024-10-01' },
+    { id: 'mem-2', user_id: 'user-002', name: 'Brian Otieno',  email: 'brian.otieno@example.co.ke',  role: 'admin',  joined_at: '2024-10-15' },
+    { id: 'mem-3', user_id: 'user-003', name: 'Carol Mwangi',  email: 'carol.mwangi@example.co.ke',  role: 'member', joined_at: '2024-11-01' },
+  ],
+  'ws-org': [
+    { id: 'mem-4', user_id: 'user-001', name: 'Amara Wanjiku', email: 'amara.wanjiku@example.co.ke',  role: 'admin',  joined_at: '2025-01-15' },
+    { id: 'mem-5', user_id: 'user-004', name: 'David Kimani',  email: 'david.kimani@example.co.ke',   role: 'member', joined_at: '2025-01-20' },
+    { id: 'mem-6', user_id: 'user-005', name: 'Esther Njeri',  email: 'esther.njeri@example.co.ke',   role: 'member', joined_at: '2025-02-01' },
+    { id: 'mem-7', user_id: 'user-006', name: 'Felix Oduya',   email: 'felix.oduya@example.co.ke',    role: 'viewer', joined_at: '2025-02-10' },
+  ],
+}
+
+// ── Departments (ORGANIZATION only) ──────────────────────────
+export const MOCK_DEPARTMENTS = [
+  { id: 'dept-programs',  workspace_id: 'ws-org', name: 'Programs',          budget: 500000,  spent: 412000, head_name: 'David Kimani'  },
+  { id: 'dept-admin',     workspace_id: 'ws-org', name: 'Administration',     budget: 200000,  spent: 188000, head_name: 'Esther Njeri'  },
+  { id: 'dept-comms',     workspace_id: 'ws-org', name: 'Communications',     budget: 150000,  spent: 98000,  head_name: 'Carol Mwangi'  },
+  { id: 'dept-field',     workspace_id: 'ws-org', name: 'Field Operations',   budget: 300000,  spent: 310000, head_name: 'Felix Oduya'   },
+  { id: 'dept-finance',   workspace_id: 'ws-org', name: 'Finance',            budget: 100000,  spent: 61000,  head_name: 'Amara Wanjiku' },
+]
+
+// ── Alerts ────────────────────────────────────────────────────
+export const MOCK_ALERTS = [
+  {
+    id: 'alert-1',
+    workspace_id: 'ws-business',
+    type: 'unusual_spending',
+    severity: 'high',
+    title: 'Unusual spending in Fuel',
+    description: 'Fuel expenses this month (KSh 38,400) are 3.2× your 6-month average (KSh 12,000).',
+    status: 'open',
+    created_at: new Date(Date.now() - 2 * 86_400_000).toISOString(),
+  },
+  {
+    id: 'alert-2',
+    workspace_id: 'ws-business',
+    type: 'budget_exceeded',
+    severity: 'medium',
+    title: 'Entertainment budget exceeded',
+    description: 'Entertainment spending has exceeded the monthly limit by KSh 4,200.',
+    status: 'open',
+    created_at: new Date(Date.now() - 1 * 86_400_000).toISOString(),
+  },
+  {
+    id: 'alert-3',
+    workspace_id: 'ws-org',
+    type: 'department_over_threshold',
+    severity: 'high',
+    title: 'Field Operations over budget',
+    description: 'Field Operations department has spent KSh 310,000 against a budget of KSh 300,000.',
+    status: 'open',
+    created_at: new Date(Date.now() - 3 * 86_400_000).toISOString(),
+  },
+  {
+    id: 'alert-4',
+    workspace_id: 'ws-org',
+    type: 'department_near_threshold',
+    severity: 'medium',
+    title: 'Administration approaching limit',
+    description: 'Administration has used 94% of its KSh 200,000 budget.',
+    status: 'open',
+    created_at: new Date(Date.now() - 4 * 86_400_000).toISOString(),
+  },
+]
+
+// ── Recommendations ───────────────────────────────────────────
+export const MOCK_RECOMMENDATIONS = [
+  {
+    id: 'rec-1',
+    workspace_id: 'ws-business',
+    title: 'Review Fuel expenses',
+    body: 'Your fuel spend spiked this month. Consider setting a stricter budget or reviewing whether all trips are business-related.',
+    priority: 'high',
+  },
+  {
+    id: 'rec-2',
+    workspace_id: 'ws-business',
+    title: 'Increase Emergency Fund contributions',
+    body: 'Your savings rate has been below 15% for 3 consecutive months. Consider automating a KSh 10,000 monthly transfer.',
+    priority: 'medium',
+  },
+  {
+    id: 'rec-3',
+    workspace_id: 'ws-org',
+    title: 'Reallocate Field Operations budget',
+    body: 'Field Operations has overspent. Consider requesting a budget revision or reallocating from the underspent Communications budget.',
+    priority: 'high',
+  },
+]
+
+// ── Business dashboard summary ────────────────────────────────
+export const MOCK_BUSINESS_SUMMARY = {
+  total_income:   285000,
+  total_expenses: 198500,
+  net_profit:      86500,
+  net_margin_pct:  30.4,
+  open_alerts:     2,
+  period_changes: {
+    income:     12.4,
+    expenses:   -3.1,
+    net_profit: 18.2,
+  },
+}
+
+// ── Organisation dashboard summary ───────────────────────────
+export const MOCK_ORG_SUMMARY = {
+  total_budget:      1250000,
+  total_spent:       1069000,
+  total_remaining:    181000,
+  utilization_pct:     85.5,
+  departments_over:    1,     // Field Operations
+  departments_near:    1,     // Administration (≥ 80%)
+  open_alerts:         2,
+  period: { from: null, to: null },
+}
