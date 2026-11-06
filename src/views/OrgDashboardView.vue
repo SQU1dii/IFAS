@@ -34,6 +34,7 @@ const ui  = useUiStore()
 const loading = ref(false)
 const error   = ref('')
 const data    = ref(null)
+const members = ref([])
 
 // Department filter (for the table and trend chart)
 const deptFilter = ref('')
@@ -57,6 +58,8 @@ async function load() {
       ...currentRange.value,
       department: deptFilter.value || undefined,
     })
+    // Load members for the members panel
+    members.value = await workspaceService.listMembers(ws.wsId)
   } catch (e) {
     error.value = e?.message ?? 'Failed to load dashboard.'
   } finally { loading.value = false }
@@ -307,6 +310,36 @@ const statusLabel = { over: 'Over budget', warning: 'Near limit', on_track: 'On 
           </div>
         </li>
       </ul>
+    </BaseCard>
+
+    <!-- ── 6. Members summary panel ───────────────────────── -->
+    <BaseCard v-if="!loading && members.length" no-pad>
+      <div class="px-5 pt-4 pb-2 border-b border-slate-100 flex items-center justify-between">
+        <div>
+          <h2 class="section-title">Members</h2>
+          <p class="muted mt-0.5">{{ members.length }} member{{ members.length !== 1 ? 's' : '' }} in this workspace</p>
+        </div>
+        <RouterLink to="/members" class="text-xs font-medium text-emerald-600 hover:underline shrink-0">Manage →</RouterLink>
+      </div>
+      <ul class="divide-y divide-slate-100" role="list">
+        <li v-for="m in members.slice(0, 5)" :key="m.id" class="flex items-center gap-3 px-5 py-3">
+          <span class="shrink-0 h-8 w-8 rounded-full bg-emerald-600 flex items-center justify-center text-white text-xs font-bold" aria-hidden="true">
+            {{ m.name.split(' ').map((p) => p[0]).slice(0, 2).join('').toUpperCase() }}
+          </span>
+          <div class="flex-1 min-w-0">
+            <p class="text-sm font-medium text-navy-800 truncate">{{ m.name }}</p>
+            <p class="text-xs text-slate-400 truncate">{{ m.email }}</p>
+          </div>
+          <BaseBadge :variant="{ owner: 'purple', admin: 'blue', member: 'green', viewer: 'neutral' }[m.role] ?? 'neutral'" size="sm" class="capitalize shrink-0">
+            {{ m.role }}
+          </BaseBadge>
+        </li>
+      </ul>
+      <div v-if="members.length > 5" class="px-5 py-2.5 border-t border-slate-100 text-center">
+        <RouterLink to="/members" class="text-xs text-emerald-600 hover:underline">
+          View all {{ members.length }} members →
+        </RouterLink>
+      </div>
     </BaseCard>
 
   </div>

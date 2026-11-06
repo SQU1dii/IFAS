@@ -21,24 +21,26 @@ const props = defineProps({
   modelValue:  { type: Object,  default: () => ({}) },
   categories:  { type: Array,   default: () => [] },
   accounts:    { type: Array,   default: () => [] },
+  departments: { type: Array,   default: () => [] },
   hideType:    { type: Boolean, default: false },
 })
 const emit = defineEmits(['update:modelValue', 'search'])
 
 const f = reactive({
-  search:      props.modelValue.search      ?? '',
-  type:        props.modelValue.type        ?? '',
-  category_id: props.modelValue.category_id ?? '',
-  account_id:  props.modelValue.account_id  ?? '',
-  from:        props.modelValue.from        ?? '',
-  to:          props.modelValue.to          ?? '',
+  search:        props.modelValue.search        ?? '',
+  type:          props.modelValue.type          ?? '',
+  category_id:   props.modelValue.category_id   ?? '',
+  account_id:    props.modelValue.account_id    ?? '',
+  department_id: props.modelValue.department_id  ?? '',
+  from:          props.modelValue.from          ?? '',
+  to:            props.modelValue.to            ?? '',
 })
 
 // Emit on every change so the parent can decide whether to debounce.
 watch(f, () => emit('update:modelValue', { ...f }), { deep: true })
 
 function reset() {
-  f.search = ''; f.type = ''; f.category_id = ''; f.account_id = ''; f.from = ''; f.to = ''
+  f.search = ''; f.type = ''; f.category_id = ''; f.account_id = ''; f.department_id = ''; f.from = ''; f.to = ''
 }
 
 const typeOptions = [
@@ -51,8 +53,9 @@ const categoryOptions = props.categories.map((c) => ({ value: c.id, label: c.nam
 const accountOptions  = props.accounts
   .filter((a) => a.is_active !== false)
   .map((a) => ({ value: a.id, label: a.name }))
+const departmentOptions = props.departments.map((d) => ({ value: d.id, label: d.name }))
 
-const hasFilters = () => f.type || f.category_id || f.account_id || f.from || f.to
+const hasFilters = () => f.type || f.category_id || f.account_id || f.department_id || f.from || f.to
 </script>
 
 <template>
@@ -97,6 +100,15 @@ const hasFilters = () => f.type || f.category_id || f.account_id || f.from || f.
         placeholder="All accounts"
         :options="accountOptions"
         aria-label="Filter by account"
+      />
+
+      <!-- Department (org only — options empty if no departments) -->
+      <BaseSelect
+        v-if="departmentOptions.length"
+        v-model="f.department_id"
+        placeholder="All departments"
+        :options="departmentOptions"
+        aria-label="Filter by department"
       />
     </div>
 

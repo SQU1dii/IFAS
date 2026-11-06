@@ -91,6 +91,12 @@ const routes = [
         component: () => import('@/views/AccountsView.vue'),
         meta: { title: 'Accounts', permission: 'transactions.read' },
       },
+      {
+        path: 'categories',
+        name: 'categories',
+        component: () => import('@/views/CategoriesView.vue'),
+        meta: { title: 'Categories', permission: 'transactions.read' },
+      },
 
       // ── Budgets ──────────────────────────────────────────────────────────
       {

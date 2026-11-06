@@ -58,6 +58,22 @@ const insightsData  = ref(null)   // used by budget-recs + savings-ops sections
 const loading = reactive({ patterns: false, anomalies: false, forecast: false, insights: false })
 const errors  = reactive({ patterns: '',    anomalies: '',    forecast: '',    insights: ''    })
 
+// ── Dismiss / review anomaly alerts ──────────────────────────
+async function dismissAnomaly(id) {
+  try {
+    await intelligenceService.updateAlert(id, 'dismiss')
+    anomaliesData.value = (anomaliesData.value ?? []).filter((a) => a.id !== id)
+  } catch { /* non-critical */ }
+}
+
+async function reviewAnomaly(id) {
+  try {
+    await intelligenceService.updateAlert(id, 'review')
+    const item = (anomaliesData.value ?? []).find((a) => a.id === id)
+    if (item) item.status = 'reviewed'
+  } catch { /* non-critical */ }
+}
+
 async function fetchSection(key, fn, target) {
   loading[key] = true; errors[key] = ''
   try   { target.value = await fn() }
@@ -284,6 +300,7 @@ const forecastSeries = computed(() => {
                   <th class="px-5 py-2.5 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Amount</th>
                   <th class="px-5 py-2.5 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide hidden sm:table-cell">Category avg</th>
                   <th class="px-5 py-2.5 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide hidden sm:table-cell">Above avg</th>
+                  <th class="px-5 py-2.5 text-center text-xs font-semibold text-slate-500 uppercase tracking-wide">Actions</th>
                 </tr>
               </thead>
               <tbody class="divide-y divide-slate-100">
@@ -305,6 +322,22 @@ const forecastSeries = computed(() => {
                   </td>
                   <td class="px-5 py-3 text-right hidden sm:table-cell">
                     <BaseBadge variant="amber" size="sm">+{{ a.deviation_pct }}%</BaseBadge>
+                  </td>
+                  <td class="px-5 py-3 text-center whitespace-nowrap">
+                    <template v-if="a.status !== 'reviewed' && a.status !== 'dismissed'">
+                      <div class="flex items-center justify-center gap-1">
+                        <BaseButton variant="ghost" size="sm" @click="reviewAnomaly(a.id)">
+                          <span class="text-xs">Review</span>
+                        </BaseButton>
+                        <BaseButton variant="ghost" size="sm" icon-only :aria-label="'Dismiss ' + a.description" @click="dismissAnomaly(a.id)">
+                          <svg class="h-3.5 w-3.5 text-slate-400" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true">
+                            <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+                          </svg>
+                        </BaseButton>
+                      </div>
+                    </template>
+                    <span v-else-if="a.status === 'reviewed'" class="text-xs text-emerald-600 font-medium">Reviewed</span>
+                    <span v-else class="text-xs text-slate-400 italic">Dismissed</span>
                   </td>
                 </tr>
               </tbody>
@@ -341,6 +374,11 @@ const forecastSeries = computed(() => {
               Estimates only — based on {{ forecastData.based_on_months }}-month trend
             </p>
             <p class="text-xs text-purple-700 mt-0.5 leading-relaxed">{{ forecastData.disclaimer }}</p>
+            <!-- MAPE accuracy metric -->
+            <p v-if="forecastData.mape != null" class="text-xs text-purple-600 mt-1">
+              Model accuracy (MAPE): <strong>{{ forecastData.mape }}%</strong> —
+              {{ forecastData.mape < 15 ? 'high accuracy' : forecastData.mape < 30 ? 'moderate accuracy' : 'low accuracy — treat with caution' }}
+            </p>
           </div>
         </div>
 

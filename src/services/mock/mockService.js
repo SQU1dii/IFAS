@@ -930,8 +930,9 @@ export async function mockGetForecast({ horizon_months = 3 } = {}) {
 
   // Use 6-month history as the basis
   const history = buildMonthlySeries(_transactions, 6)
-  if (history.length < 3) {
-    return { insufficient_data: true, message: 'Not enough historical data to generate a forecast.' }
+  // Spec requires 6+ months of data for a forecast.
+  if (history.length < 6) {
+    return { insufficient_data: true, message: 'At least 6 months of transaction history is needed to generate a forecast. You currently have ' + history.length + ' months.' }
   }
 
   const incomeVals   = history.map((h) => h.income)
@@ -948,6 +949,22 @@ export async function mockGetForecast({ horizon_months = 3 } = {}) {
 
   const incomeTrend  = lateIncome  - earlyIncome   // monthly change
   const expenseTrend = lateExp     - earlyExp
+
+  // Calculate MAPE (Mean Absolute Percentage Error) — backtest the
+  // simple-average model against the last 3 actual months.
+  const backtestMonths = Math.min(3, history.length - 1)
+  const backtest = history.slice(-backtestMonths)
+  let absPctErrors = []
+  for (const m of backtest) {
+    if (m.expenses > 0) {
+      const predicted = avgExpenses
+      const pctErr = Math.abs((m.expenses - predicted) / m.expenses) * 100
+      absPctErrors.push(pctErr)
+    }
+  }
+  const mape = absPctErrors.length > 0
+    ? Math.round((absPctErrors.reduce((a, b) => a + b, 0) / absPctErrors.length) * 10) / 10
+    : null  // null if no valid backtest months
 
   const now = new Date()
   const forecast = []
@@ -973,6 +990,7 @@ export async function mockGetForecast({ horizon_months = 3 } = {}) {
   return {
     based_on_months: history.length,
     horizon_months,
+    mape,  // Mean Absolute Percentage Error — accuracy metric for the forecast model
     forecast,
     disclaimer: 'These projections are estimates based on recent trends and should not be used for financial planning without professional advice.',
   }

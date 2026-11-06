@@ -25,11 +25,13 @@ import DeleteConfirmModal   from '@/components/transactions/DeleteConfirmModal.v
 import CsvImportWizard      from '@/components/transactions/CsvImportWizard.vue'
 
 import { useWorkspaceStore } from '@/stores/workspace'
+import workspaceService from '@/services/workspaceService'
 
 // ── Reference data ────────────────────────────────────────
-const ws         = useWorkspaceStore()
-const categories = ref([])
-const accounts   = ref([])
+const ws          = useWorkspaceStore()
+const categories  = ref([])
+const accounts    = ref([])
+const departments = ref([])
 
 async function loadReference() {
   try {
@@ -39,12 +41,16 @@ async function loadReference() {
     ])
     categories.value = cats
     accounts.value   = accs
+    // Load departments for org workspaces only
+    if (ws.isOrganization) {
+      departments.value = await workspaceService.listDepartments(ws.wsId)
+    }
   } catch { /* non-critical — selects will be empty */ }
 }
 
 // ── Filter state ──────────────────────────────────────────
 const filters = reactive({
-  search: '', type: '', category_id: '', account_id: '', from: '', to: '',
+  search: '', type: '', category_id: '', account_id: '', department_id: '', from: '', to: '',
 })
 const page = ref(1)
 
@@ -65,6 +71,7 @@ async function load() {
       type:        filters.type     || undefined,
       category_id: filters.category_id || undefined,
       account_id:  filters.account_id  || undefined,
+      department_id: filters.department_id || undefined,
       from:        filters.from     || undefined,
       to:          filters.to       || undefined,
     })
@@ -84,7 +91,7 @@ watch(() => filters.search, () => {
   searchTimer = setTimeout(() => { page.value = 1; load() }, 350)
 })
 watch(
-  () => [filters.type, filters.category_id, filters.account_id, filters.from, filters.to],
+  () => [filters.type, filters.category_id, filters.account_id, filters.department_id, filters.from, filters.to],
   () => { page.value = 1; load() }
 )
 watch(page, load)
@@ -203,6 +210,7 @@ const totalLabel = computed(() =>
       v-model="filters"
       :categories="categories"
       :accounts="accounts"
+      :departments="departments"
     />
 
     <!-- Fetch error -->
