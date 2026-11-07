@@ -68,7 +68,8 @@ export default {
   async updateAlert(alertId, action) {
     const ws = useWorkspaceStore()
     if (USE_MOCK) return mockUpdateAlert(ws.wsId, alertId, action)
-    const res = await api.patch(wsPath(`/alerts/${alertId}`), { action })
+    // Backend uses dedicated sub-paths: PATCH /alerts/:id/review or /dismiss
+    const res = await api.patch(wsPath(`/alerts/${alertId}/${action}`))
     return res.data
   },
 

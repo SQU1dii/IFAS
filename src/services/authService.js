@@ -71,16 +71,21 @@ export default {
     return res.data
   },
 
-  // Reference data — workspace-independent (global category/account lists).
+  // Reference data — workspace-scoped (categories and accounts for form dropdowns).
   async getCategories() {
     if (USE_MOCK) return mockGetCategories()
-    const res = await api.get('/categories')
+    // Use workspace-scoped categories (not the global /categories template list)
+    const { useWorkspaceStore } = await import('@/stores/workspace')
+    const ws = useWorkspaceStore()
+    const res = await api.get(`/workspaces/${ws.wsId}/categories`)
     return res.data
   },
 
   async getAccounts() {
     if (USE_MOCK) return mockGetAccounts()
-    const res = await api.get('/accounts')
+    const { useWorkspaceStore } = await import('@/stores/workspace')
+    const ws = useWorkspaceStore()
+    const res = await api.get(`/workspaces/${ws.wsId}/accounts`)
     return res.data
   },
 }
