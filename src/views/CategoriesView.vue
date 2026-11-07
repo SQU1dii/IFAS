@@ -6,7 +6,7 @@
  */
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useWorkspaceStore } from '@/stores/workspace'
-import dashboardService   from '@/services/dashboardService'
+import categoryService from '@/services/categoryService'
 import { runRules, required, minLength } from '@/utils/validation'
 
 import PageHeader         from '@/components/common/PageHeader.vue'
@@ -31,7 +31,7 @@ const expenseCats = computed(() => allCats.value.filter((c) => c.type === 'expen
 
 async function load() {
   loading.value = true; fetchError.value = ''
-  try { allCats.value = await dashboardService.getCategories() }
+  try { allCats.value = await categoryService.list() }
   catch (e) { fetchError.value = e?.message ?? 'Failed to load categories.' }
   finally   { loading.value = false }
 }
@@ -78,14 +78,13 @@ async function handleSave() {
   if (!isValid.value) return
   formLoading.value = true; formApiError.value = ''
   try {
-    // In mock mode, categories are read-only — the mock service doesn't
-    // support create/update/delete for categories. The real backend would.
-    // For now we simulate by updating the local list.
     if (editTarget.value) {
+      const updated = await categoryService.update(editTarget.value.id, { name: form.name.trim() })
       const idx = allCats.value.findIndex((c) => c.id === editTarget.value.id)
-      if (idx !== -1) allCats.value[idx] = { ...allCats.value[idx], name: form.name.trim(), type: form.type }
+      if (idx !== -1) allCats.value[idx] = updated
     } else {
-      allCats.value.push({ id: `cat-${Date.now()}`, name: form.name.trim(), type: form.type })
+      const created = await categoryService.create({ name: form.name.trim(), type: form.type })
+      allCats.value.push(created)
     }
     closeModal()
   } catch (e) {
@@ -103,6 +102,7 @@ function closeDelete()   { deleteTarget.value = null }
 async function handleDelete() {
   deleteLoading.value = true
   try {
+    await categoryService.remove(deleteTarget.value.id)
     allCats.value = allCats.value.filter((c) => c.id !== deleteTarget.value.id)
     closeDelete()
   } catch (e) { formApiError.value = e?.message ?? 'Delete failed.' }
