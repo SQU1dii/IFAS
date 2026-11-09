@@ -61,7 +61,11 @@ const routes = [
         path: '',
         name: 'dashboard',
         component: () => import('@/views/DashboardView.vue'),
-        meta: { title: 'Dashboard', permission: 'transactions.read' },
+        // dashboard.view is the permission the server returns for all roles that
+        // can see the dashboard. transactions.view is also acceptable — both are
+        // granted to all non-viewer roles. Using dashboard.view matches the backend
+        // PERMISSIONS constant exactly.
+        meta: { title: 'Dashboard', permission: 'dashboard.view' },
       },
 
       // ── Transactions ─────────────────────────────────────────────────────
@@ -69,19 +73,19 @@ const routes = [
         path: 'transactions',
         name: 'transactions',
         component: () => import('@/views/TransactionsView.vue'),
-        meta: { title: 'Transactions', permission: 'transactions.read' },
+        meta: { title: 'Transactions', permission: 'transactions.view' },
       },
       {
         path: 'income',
         name: 'income',
         component: () => import('@/views/IncomeView.vue'),
-        meta: { title: 'Income', permission: 'transactions.read' },
+        meta: { title: 'Income', permission: 'transactions.view' },
       },
       {
         path: 'expenses',
         name: 'expenses',
         component: () => import('@/views/ExpensesView.vue'),
-        meta: { title: 'Expenses', permission: 'transactions.read' },
+        meta: { title: 'Expenses', permission: 'transactions.view' },
       },
 
       // ── Accounts & categories ────────────────────────────────────────────
@@ -89,13 +93,13 @@ const routes = [
         path: 'accounts',
         name: 'accounts',
         component: () => import('@/views/AccountsView.vue'),
-        meta: { title: 'Accounts', permission: 'transactions.read' },
+        meta: { title: 'Accounts', permission: 'accounts.manage' },
       },
       {
         path: 'categories',
         name: 'categories',
         component: () => import('@/views/CategoriesView.vue'),
-        meta: { title: 'Categories', permission: 'transactions.read' },
+        meta: { title: 'Categories', permission: 'accounts.manage' },
       },
 
       // ── Budgets ──────────────────────────────────────────────────────────
@@ -103,7 +107,7 @@ const routes = [
         path: 'budgets',
         name: 'budgets',
         component: () => import('@/views/BudgetsView.vue'),
-        meta: { title: 'Budgets', permission: 'budgets.read' },
+        meta: { title: 'Budgets', permission: 'budgets.manage' },
       },
 
       // ── Savings goals (Personal only) ────────────────────────────────────
@@ -113,7 +117,7 @@ const routes = [
         component: () => import('@/views/SavingsView.vue'),
         meta: {
           title: 'Savings Goals',
-          permission: 'budgets.read',
+          permission: 'goals.manage',
           wsTypes: ['PERSONAL'],
         },
       },
@@ -123,7 +127,7 @@ const routes = [
         path: 'analytics',
         name: 'analytics',
         component: () => import('@/views/AnalyticsView.vue'),
-        meta: { title: 'Analytics', permission: 'reports.read' },
+        meta: { title: 'Analytics', permission: 'analytics.view' },
       },
 
       // ── Reports ──────────────────────────────────────────────────────────
@@ -131,7 +135,7 @@ const routes = [
         path: 'reports',
         name: 'reports',
         component: () => import('@/views/ReportsView.vue'),
-        meta: { title: 'Reports', permission: 'reports.read' },
+        meta: { title: 'Reports', permission: 'reports.generate' },
       },
 
       // ── Financial Intelligence ────────────────────────────────────────────
@@ -139,7 +143,7 @@ const routes = [
         path: 'intelligence',
         name: 'intelligence',
         component: () => import('@/views/IntelligenceView.vue'),
-        meta: { title: 'Financial Intelligence', permission: 'reports.read' },
+        meta: { title: 'Financial Intelligence', permission: 'analytics.view' },
       },
 
       // ── AI Financial Assistant (F8) ───────────────────────────────────────
@@ -157,7 +161,7 @@ const routes = [
         component: () => import('@/views/MembersView.vue'),
         meta: {
           title: 'Members & Roles',
-          permission: 'members.read',
+          permission: 'members.manage',
           wsTypes: ['BUSINESS', 'ORGANIZATION'],
         },
       },
@@ -169,7 +173,7 @@ const routes = [
         component: () => import('@/views/DepartmentsView.vue'),
         meta: {
           title: 'Departments',
-          permission: 'departments.read',
+          permission: 'departments.manage',
           wsTypes: ['ORGANIZATION'],
         },
       },

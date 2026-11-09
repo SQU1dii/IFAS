@@ -7,7 +7,9 @@ import { useWorkspaceStore } from '@/stores/workspace'
 import { mockGetReportSummary } from './mock/mockService'
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true'
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1'
+// Note: CSV export uses the api instance which has the correct baseURL and
+// automatically includes the Authorization header via the request interceptor.
+// We no longer need a separate API_BASE constant.
 
 function wsPath(path = '') {
   const ws = useWorkspaceStore()
@@ -21,17 +23,32 @@ export default {
     return res.data
   },
 
-  exportCsv(params = {}, summaryData = null) {
+  async exportCsv(params = {}, summaryData = null) {
     const ws = useWorkspaceStore()
     if (USE_MOCK) {
       _mockExportCsv(params, summaryData)
       return
     }
-    const qs = new URLSearchParams({
-      type: 'full', format: 'csv',
-      from: params.from ?? '', to: params.to ?? '',
-    }).toString()
-    window.open(`${API_BASE}/workspaces/${ws.wsId}/reports?${qs}`, '_blank', 'noopener')
+    // Fetch the CSV via api (which includes auth header) and trigger download
+    try {
+      const qs = new URLSearchParams({
+        type: 'full', format: 'csv',
+        from: params.from ?? '', to: params.to ?? '',
+      }).toString()
+      const response = await api.get(wsPath(`/reports?${qs}`), {
+        responseType: 'blob',
+      })
+      const blob = response instanceof Blob ? response : response.data
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = `ifas-report-${params.from ?? 'all'}-${params.to ?? 'all'}.csv`
+      a.click()
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error('CSV export failed:', error)
+      throw error
+    }
   },
 }
 

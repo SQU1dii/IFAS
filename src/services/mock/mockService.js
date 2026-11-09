@@ -28,15 +28,60 @@ function delay(ms = MOCK_DELAY) {
   return new Promise((r) => setTimeout(r, ms))
 }
 
-// ── Mutable in-memory stores (reset on page reload) ────────
-let _transactions  = [...MOCK_TRANSACTIONS]
-let _accounts      = [...MOCK_ACCOUNTS]
-let _budgets       = [...MOCK_BUDGETS]
-let _savings       = [...MOCK_SAVINGS_GOALS]
-let _contributions = MOCK_CONTRIBUTIONS.map((c) => ({ ...c }))
+// ── Per-workspace in-memory stores ─────────────────────────
+//
+// Each workspace has its own isolated data slice. The three pre-seeded
+// workspaces (ws-personal, ws-business, ws-org) start with realistic
+// sample data. Any workspace created at runtime starts completely empty —
+// mirroring what the real backend does (a new workspace has zero rows).
+//
+// _wsStore is a Map<workspaceId, StoreSlice>.
+// Helper functions ws_get/ws_set/ws_transactions etc. always key by wsId
+// so no data leaks between workspaces.
+
+const SEEDED_WS_IDS = ['ws-personal', 'ws-business', 'ws-org']
+
+function makeEmptySlice() {
+  return {
+    transactions:  [],
+    accounts:      [],
+    budgets:       [],
+    savings:       [],
+    contributions: [],
+  }
+}
+
+function makeSeededSlice() {
+  return {
+    transactions:  [...MOCK_TRANSACTIONS],
+    accounts:      [...MOCK_ACCOUNTS],
+    budgets:       [...MOCK_BUDGETS],
+    savings:       [...MOCK_SAVINGS_GOALS],
+    contributions: MOCK_CONTRIBUTIONS.map((c) => ({ ...c })),
+  }
+}
+
+const _wsStore = new Map([
+  ['ws-personal', makeSeededSlice()],
+  ['ws-business', makeSeededSlice()],
+  ['ws-org',      makeSeededSlice()],
+])
+
+// Get (or lazily create) a workspace's data slice.
+function getSlice(wsId) {
+  if (!_wsStore.has(wsId)) _wsStore.set(wsId, makeEmptySlice())
+  return _wsStore.get(wsId)
+}
+
+// ── Workspace-independent stores ────────────────────────────
+let _workspaces   = MOCK_WORKSPACES.map((w) => ({ ...w }))
+let _members      = JSON.parse(JSON.stringify(MOCK_MEMBERS))
+let _departments  = MOCK_DEPARTMENTS.map((d) => ({ ...d }))
+let _alerts       = MOCK_ALERTS.map((a) => ({ ...a }))
 let _notifications = [...MOCK_NOTIFICATIONS]
 let _user          = { ...MOCK_USER }
-let _idSeq         = 9000 // IDs for new records
+let _conversations = {}
+let _idSeq         = 9000
 
 function nextId(prefix) { return `${prefix}-${++_idSeq}` }
 
@@ -44,6 +89,16 @@ function inRange(date, start, end) {
   if (!start || !end) return true
   return date >= start && date <= end
 }
+
+// ── Active workspace resolver ────────────────────────────────
+// Most mock functions receive the workspace id explicitly via the service
+// layer, but the older helper functions (aggregate, etc.) still work on
+// a flat array. This helper bridges the gap.
+function txns(wsId) { return getSlice(wsId).transactions }
+function accs(wsId) { return getSlice(wsId).accounts     }
+function buds(wsId) { return getSlice(wsId).budgets       }
+function savs(wsId) { return getSlice(wsId).savings       }
+function cons(wsId) { return getSlice(wsId).contributions }
 
 // ── Auth ────────────────────────────────────────────────────
 
@@ -88,33 +143,34 @@ export async function mockResetPassword({ token, password }) {
  * Net cash flow = totalIncome − totalExpenses (transfers excluded).
  * The frontend DISPLAYS what this function returns — it never recalculates.
  */
-export async function mockGetDashboard({ start, end } = {}, comparison) {
+export async function mockGetDashboard({ start, end } = {}, comparison, wsId = 'ws-personal') {
   await delay()
-  const period   = aggregate(_transactions, start, end)
-  const previous = comparison ? aggregate(_transactions, comparison.start, comparison.end) : null
-  const budgets  = computeBudgetUtilization(_transactions, end)
-  const monthly  = buildMonthlySeries(_transactions, 7)
+  const slice    = getSlice(wsId)
+  const period   = aggregate(slice.transactions, start, end)
+  const previous = comparison ? aggregate(slice.transactions, comparison.start, comparison.end) : null
+  const budgets  = computeBudgetUtilization(slice.transactions, slice.budgets, end)
+  const monthly  = buildMonthlySeries(slice.transactions, 7)
   const insights = buildInsights(period, budgets, previous)
 
   return {
     summary: {
       total_income:   period.income,
       total_expenses: period.expenses,
-      net_cash_flow:  period.netCashFlow,  // income − expenses
+      net_cash_flow:  period.netCashFlow,
       savings_rate:   period.savingsRate,
       period_changes: previous
         ? {
-            income:        pctChange(period.income,        previous.income),
-            expenses:      pctChange(period.expenses,      previous.expenses),
-            net_cash_flow: pctChange(period.netCashFlow,   previous.netCashFlow),
+            income:        pctChange(period.income,      previous.income),
+            expenses:      pctChange(period.expenses,    previous.expenses),
+            net_cash_flow: pctChange(period.netCashFlow, previous.netCashFlow),
           }
         : null,
     },
     spending_by_category: period.spendingByCategory,
     monthly_series:       monthly,
     budget_utilization:   budgets,
-    savings_goals:        _savings,
-    recent_transactions:  _transactions.slice(0, 6),
+    savings_goals:        slice.savings.map(enrichGoal),
+    recent_transactions:  slice.transactions.slice(0, 6),
     insights,
   }
 }
@@ -125,9 +181,10 @@ export async function mockGetTransactions({
   page = 1, page_size = 15,
   type, category_id, account_id,
   search, from, to,
+  wsId = 'ws-personal',
 } = {}) {
   await delay()
-  let items = [..._transactions]
+  let items = [...getSlice(wsId).transactions]
 
   if (type)        items = items.filter((t) => t.type === type)
   if (category_id) items = items.filter((t) => t.category_id === category_id)
@@ -147,26 +204,24 @@ export async function mockGetTransactions({
   const start      = (page - 1) * page_size
   const data       = items.slice(start, start + page_size)
 
-  return {
-    data,
-    meta: { total, page, page_size, total_pages: totalPages },
-  }
+  return { data, meta: { total, page, page_size, total_pages: totalPages } }
 }
 
-export async function mockGetTransaction(id) {
+export async function mockGetTransaction(id, wsId = 'ws-personal') {
   await delay()
-  const t = _transactions.find((t) => t.id === id)
+  const t = getSlice(wsId).transactions.find((t) => t.id === id)
   if (!t) throw { message: 'Transaction not found.', status: 404 }
   return t
 }
 
-export async function mockCreateTransaction(payload) {
+export async function mockCreateTransaction(payload, wsId = 'ws-personal') {
   await delay()
-  const acc  = _accounts.find((a) => a.id === payload.account_id)
-  const dest = payload.destination_account_id
-    ? _accounts.find((a) => a.id === payload.destination_account_id)
+  const slice = getSlice(wsId)
+  const acc   = slice.accounts.find((a) => a.id === payload.account_id)
+  const dest  = payload.destination_account_id
+    ? slice.accounts.find((a) => a.id === payload.destination_account_id)
     : null
-  const cat  = payload.category_id
+  const cat = payload.category_id
     ? MOCK_CATEGORIES.find((c) => c.id === payload.category_id)
     : null
 
@@ -176,46 +231,48 @@ export async function mockCreateTransaction(payload) {
     description: payload.description,
     amount: Number(payload.amount),
     type: payload.type,
-    category_id: payload.type === 'transfer' ? null : (payload.category_id ?? null),
+    category_id:   payload.type === 'transfer' ? null : (payload.category_id ?? null),
     category_name: payload.type === 'transfer' ? null : (cat?.name ?? null),
-    account_id: payload.account_id,
-    account_name: acc?.name ?? '',
-    destination_account_id: dest?.id ?? null,
+    account_id:    payload.account_id,
+    account_name:  acc?.name ?? '',
+    destination_account_id:   dest?.id   ?? null,
     destination_account_name: dest?.name ?? null,
     notes: payload.notes ?? '',
   }
-  _transactions.unshift(txn)
+  slice.transactions.unshift(txn)
   return txn
 }
 
-export async function mockUpdateTransaction(id, payload) {
+export async function mockUpdateTransaction(id, payload, wsId = 'ws-personal') {
   await delay()
-  const idx = _transactions.findIndex((t) => t.id === id)
+  const slice = getSlice(wsId)
+  const idx   = slice.transactions.findIndex((t) => t.id === id)
   if (idx === -1) throw { message: 'Transaction not found.', status: 404 }
-  const acc  = _accounts.find((a) => a.id === payload.account_id)
+  const acc  = slice.accounts.find((a) => a.id === payload.account_id)
   const dest = payload.destination_account_id
-    ? _accounts.find((a) => a.id === payload.destination_account_id)
+    ? slice.accounts.find((a) => a.id === payload.destination_account_id)
     : null
-  const cat  = payload.category_id
+  const cat = payload.category_id
     ? MOCK_CATEGORIES.find((c) => c.id === payload.category_id)
     : null
-  _transactions[idx] = {
-    ..._transactions[idx],
+  slice.transactions[idx] = {
+    ...slice.transactions[idx],
     ...payload,
     amount: Number(payload.amount),
     category_name: payload.type === 'transfer' ? null : (cat?.name ?? null),
-    account_name: acc?.name ?? _transactions[idx].account_name,
-    destination_account_id: dest?.id ?? null,
+    account_name:  acc?.name ?? slice.transactions[idx].account_name,
+    destination_account_id:   dest?.id   ?? null,
     destination_account_name: dest?.name ?? null,
   }
-  return _transactions[idx]
+  return slice.transactions[idx]
 }
 
-export async function mockDeleteTransaction(id) {
+export async function mockDeleteTransaction(id, wsId = 'ws-personal') {
   await delay()
-  const idx = _transactions.findIndex((t) => t.id === id)
+  const slice = getSlice(wsId)
+  const idx   = slice.transactions.findIndex((t) => t.id === id)
   if (idx === -1) throw { message: 'Transaction not found.', status: 404 }
-  _transactions.splice(idx, 1)
+  slice.transactions.splice(idx, 1)
   return {}
 }
 

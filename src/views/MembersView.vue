@@ -38,16 +38,33 @@ async function load() {
 onMounted(load)
 
 // ── Role helpers ─────────────────────────────────────────
+// Backend returns full role names like "PERSONAL Owner", "BUSINESS Owner",
+// "ORGANIZATION Admin" etc. Map these to display labels and badge colours.
 const ROLE_OPTIONS = [
   { value: 'admin',  label: 'Admin'  },
   { value: 'member', label: 'Member' },
   { value: 'viewer', label: 'Viewer' },
 ]
+
+function roleDisplay(roleStr) {
+  if (!roleStr) return 'Member'
+  const r = String(roleStr).toLowerCase()
+  if (r.includes('owner') || r.includes('admin')) return 'Admin'
+  if (r.includes('manager') || r.includes('finance officer') || r.includes('dept head')) return 'Manager'
+  if (r.includes('viewer')) return 'Viewer'
+  return 'Member'
+}
+
 const roleBadge = {
-  owner:  'purple',
-  admin:  'blue',
-  member: 'green',
-  viewer: 'neutral',
+  Admin:   'purple',
+  Manager: 'blue',
+  Member:  'green',
+  Viewer:  'neutral',
+  owner:   'purple',
+  admin:   'purple',
+  manager: 'blue',
+  member:  'green',
+  viewer:  'neutral',
 }
 
 // ── Invite modal ─────────────────────────────────────────
@@ -170,8 +187,8 @@ const canManage = computed(() => ws.can('members.write'))
           </div>
           <!-- Role selector / badge -->
           <div class="shrink-0">
-            <span v-if="m.role === 'owner' || !canManage">
-              <BaseBadge :variant="roleBadge[m.role]" size="sm" class="capitalize">{{ m.role }}</BaseBadge>
+            <span v-if="roleDisplay(m.role) === 'Admin' && m.user_id === ws.active?.created_by || !canManage">
+              <BaseBadge :variant="roleBadge[roleDisplay(m.role)] ?? 'neutral'" size="sm">{{ roleDisplay(m.role) }}</BaseBadge>
             </span>
             <div v-else class="flex items-center gap-2">
               <select

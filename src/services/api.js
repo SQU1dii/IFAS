@@ -44,7 +44,7 @@ export const tokenStore = {
 // ── Axios instance ────────────────────────────────────────
 const api = axios.create({
   // Spec base: /api/v1  — VITE_API_URL should be http://host/api/v1
-  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:5000/api/v1',
+  baseURL: import.meta.env.VITE_API_URL || 'http://localhost:4000/api/v1',
   headers: { 'Content-Type': 'application/json' },
   timeout: 15000,
   withCredentials: true, // send the HttpOnly refresh-token cookie on every req

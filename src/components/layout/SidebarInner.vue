@@ -42,22 +42,22 @@ const wsTypeLabel = computed(() => ({
 // permission: undefined = always show; string = hide if not permitted
 const ALL_NAV = [
   { name: 'Dashboard',              to: '/',             icon: 'home',         exact: true },
-  { name: 'Transactions',           to: '/transactions', icon: 'transactions', permission: 'transactions.read' },
-  { name: 'Income',                 to: '/income',       icon: 'income',       permission: 'transactions.read' },
-  { name: 'Expenses',               to: '/expenses',     icon: 'expenses',     permission: 'transactions.read' },
-  { name: 'Accounts',               to: '/accounts',     icon: 'accounts',     permission: 'transactions.read' },
-  { name: 'Categories',              to: '/categories',   icon: 'categories',   permission: 'transactions.read' },
-  { name: 'Budgets',                to: '/budgets',      icon: 'budget',       permission: 'budgets.read' },
+  { name: 'Transactions',           to: '/transactions', icon: 'transactions', permission: 'transactions.view' },
+  { name: 'Income',                 to: '/income',       icon: 'income',       permission: 'transactions.view' },
+  { name: 'Expenses',               to: '/expenses',     icon: 'expenses',     permission: 'transactions.view' },
+  { name: 'Accounts',               to: '/accounts',     icon: 'accounts',     permission: 'accounts.manage' },
+  { name: 'Categories',              to: '/categories',   icon: 'categories',   permission: 'accounts.manage' },
+  { name: 'Budgets',                to: '/budgets',      icon: 'budget',       permission: 'budgets.manage' },
   // Savings — personal only
-  { name: 'Savings Goals',          to: '/savings',      icon: 'savings',      permission: 'budgets.read', wsTypes: ['PERSONAL'] },
-  { name: 'Analytics',              to: '/analytics',    icon: 'analytics',    permission: 'reports.read' },
-  { name: 'Reports',                to: '/reports',      icon: 'reports',      permission: 'reports.read' },
-  { name: 'Intelligence',           to: '/intelligence', icon: 'intelligence', permission: 'reports.read' },
-  { name: 'AI Assistant',           to: '/assistant',    icon: 'assistant' },
+  { name: 'Savings Goals',          to: '/savings',      icon: 'savings',      permission: 'goals.manage', wsTypes: ['PERSONAL'] },
+  { name: 'Analytics',              to: '/analytics',    icon: 'analytics',    permission: 'analytics.view' },
+  { name: 'Reports',                to: '/reports',      icon: 'reports',      permission: 'reports.generate' },
+  { name: 'Intelligence',           to: '/intelligence', icon: 'intelligence', permission: 'analytics.view' },
+  { name: 'AI Assistant',           to: '/assistant',    icon: 'assistant',    permission: 'assistant.use' },
   // Members — business + org only
-  { name: 'Members',                to: '/members',      icon: 'members',      permission: 'members.read', wsTypes: ['BUSINESS', 'ORGANIZATION'] },
+  { name: 'Members',                to: '/members',      icon: 'members',      permission: 'members.manage', wsTypes: ['BUSINESS', 'ORGANIZATION'] },
   // Departments — org only
-  { name: 'Departments',            to: '/departments',  icon: 'departments',  permission: 'departments.read', wsTypes: ['ORGANIZATION'] },
+  { name: 'Departments',            to: '/departments',  icon: 'departments',  permission: 'departments.manage', wsTypes: ['ORGANIZATION'] },
 ]
 
 const BOTTOM_NAV = [

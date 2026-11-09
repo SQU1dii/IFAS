@@ -15,12 +15,18 @@ import workspaceService from '@/services/workspaceService'
  * Role codes (returned by the server per workspace):
  *   owner | admin | member | viewer
  *
- * Permission codes (subset returned by the server, used for UI gating):
- *   transactions.read  transactions.write  transactions.void
- *   budgets.read       budgets.write
- *   members.read       members.write
- *   departments.read   departments.write
- *   reports.read
+ * Permission codes (subset returned by the server, used for UI gating).
+ * These MUST match the codes in Back End/src/config/constants.js PERMISSIONS:
+ *   transactions.view   transactions.create   transactions.edit   transactions.void
+ *   budgets.manage
+ *   members.manage
+ *   departments.manage
+ *   reports.generate
+ *   analytics.view
+ *   accounts.manage
+ *   goals.manage
+ *   dashboard.view
+ *   assistant.use
  *   settings.write
  */
 

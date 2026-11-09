@@ -32,7 +32,7 @@ export default {
   async list(params = {}) {
     if (USE_MOCK) return mockGetTransactions(params)
     const res = await api.get(wsPath('/transactions'), { params })
-    return res
+    return res.data  // ← unwrap data, not the full { data, meta } object
   },
 
   async get(id) {
