@@ -1176,21 +1176,6 @@ export async function mockGetSpendingPatterns({ months = 6 } = {}) {
 //  Workspaces, Members, Departments, Alerts, Recommendations
 // ═══════════════════════════════════════════════════════════
 
-import {
-  MOCK_WORKSPACES,
-  MOCK_MEMBERS,
-  MOCK_DEPARTMENTS,
-  MOCK_ALERTS,
-  MOCK_RECOMMENDATIONS,
-  MOCK_BUSINESS_SUMMARY,
-  MOCK_ORG_SUMMARY,
-} from './mockData'
-
-let _workspaces   = MOCK_WORKSPACES.map((w) => ({ ...w }))
-let _members      = JSON.parse(JSON.stringify(MOCK_MEMBERS))
-let _departments  = MOCK_DEPARTMENTS.map((d) => ({ ...d }))
-let _alerts       = MOCK_ALERTS.map((a) => ({ ...a }))
-
 // ── Workspaces ────────────────────────────────────────────────
 export async function mockListWorkspaces() {
   await delay(300)
@@ -1372,7 +1357,6 @@ export async function mockGetOrgDashboard(wsId, params = {}) {
 }
 
 // ── AI assistant ───────────────────────────────────────────────
-let _conversations = {}  // { [wsId]: [{ id, messages: [] }] }
 
 export async function mockGetConversations(wsId) {
   await delay(200)

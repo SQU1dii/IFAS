@@ -7,9 +7,12 @@
  * PATCH  /workspaces/:id/categories/:id      → update { name }
  * DELETE /workspaces/:id/categories/:id      → delete
  */
+
+// ── All imports MUST be at the top of an ES module ──────────
 import api from './api'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { mockGetCategories } from './mock/mockService'
+import { MOCK_CATEGORIES }   from './mock/mockData'
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true'
 
@@ -21,7 +24,6 @@ function wsPath(path = '') {
 // ── In-memory mock store for create/update/delete ──────────
 // The seeded MOCK_CATEGORIES are read-only; this mutable copy is used
 // for the session so CRUD actions persist until page refresh.
-import { MOCK_CATEGORIES } from './mock/mockData'
 let _mockCats = [...MOCK_CATEGORIES]
 
 export default {

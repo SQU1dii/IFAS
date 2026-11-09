@@ -11,6 +11,7 @@
  * In mock mode changes are applied to the local user object only.
  */
 import { ref, reactive, computed, onMounted } from 'vue'
+import { useRouter }             from 'vue-router'
 import { useAuthStore }      from '@/stores/auth'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { useUiStore }         from '@/stores/ui'
@@ -25,9 +26,10 @@ import BaseAlert   from '@/components/common/BaseAlert.vue'
 import BaseBadge   from '@/components/common/BaseBadge.vue'
 import { formatCurrency } from '@/utils/format'
 
-const auth = useAuthStore()
-const ws   = useWorkspaceStore()
-const ui   = useUiStore()
+const auth   = useAuthStore()
+const ws     = useWorkspaceStore()
+const ui     = useUiStore()
+const router = useRouter()
 
 const saving    = ref(false)
 const saveMsg   = ref('')
@@ -185,7 +187,7 @@ const canEditWorkspace = computed(() => ws.can('settings.write'))
           <p class="text-sm font-medium text-navy-800">{{ auth.user?.name }}</p>
           <p class="text-xs text-slate-500">{{ auth.user?.email }}</p>
         </div>
-        <BaseButton variant="danger" @click="auth.logout().then(() => $router.push('/login'))">
+        <BaseButton variant="danger" @click="auth.logout().then(() => router.push('/login'))">
           Sign out
         </BaseButton>
       </div>
