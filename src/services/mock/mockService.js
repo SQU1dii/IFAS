@@ -90,6 +90,9 @@ let _user          = { ...MOCK_USER }
 let _conversations = {}
 let _idSeq         = 9000
 
+// Track the current user so refresh doesn't overwrite with the default mock user.
+let _currentUserId = null
+
 function nextId(prefix) { return `${prefix}-${++_idSeq}` }
 
 function inRange(date, start, end) {
@@ -113,22 +116,50 @@ export async function mockLogin({ email, password }) {
   await delay()
   if (!email || !password) throw { message: 'Email and password are required.', status: 400 }
   // Accept any credentials in mock mode.
-  return { accessToken: 'mock-access-token-' + Date.now(), user: { ..._user, email } }
+  // Use the provided email; fall back to a name derived from the email.
+  const name = email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
+  const user = { ...MOCK_USER, id: 'user-001', name, email }
+  _currentUserId = user.id
+  _user = user
+  return { accessToken: 'mock-access-token-' + Date.now(), user }
 }
 
 export async function mockRegister({ name, email, password }) {
   await delay()
   if (!name || !email || !password) throw { message: 'All fields are required.', status: 400 }
-  return { accessToken: 'mock-access-token-' + Date.now(), user: { ..._user, name, email } }
+  // Create a NEW user with the provided details — don't reuse Amara's identity.
+  const userId = 'user-' + Date.now()
+  const user = {
+    id: userId,
+    name,
+    email,
+    currency: 'KES',
+    date_format: 'DD/MM/YYYY',
+    theme: 'light',
+    created_at: new Date().toISOString().slice(0, 10),
+    is_platform_admin: false,
+    notification_prefs: {
+      budget_alerts: true,
+      goal_reminders: true,
+      insight_notifications: true,
+    },
+  }
+  _currentUserId = userId
+  _user = user
+  return { accessToken: 'mock-access-token-' + Date.now(), user }
 }
 
 export async function mockRefreshToken() {
   await delay(120) // faster — session restore should be quick
+  // Return the CURRENT user, not the default mock user.
+  // This prevents a page refresh from overwriting a registered user's
+  // profile with Amara Wanjiku's data.
   return { accessToken: 'mock-access-token-refreshed-' + Date.now(), user: { ..._user } }
 }
 
 export async function mockLogout() {
   await delay(120)
+  _currentUserId = null
   return {}
 }
 
@@ -1186,7 +1217,11 @@ export async function mockGetSpendingPatterns({ months = 6 } = {}) {
 // ── Workspaces ────────────────────────────────────────────────
 export async function mockListWorkspaces() {
   await delay(300)
-  return [..._workspaces]
+  // Only return workspaces that belong to the current user.
+  // The 3 pre-seeded workspaces belong to user-001 (Amara).
+  // New users start with zero workspaces and must create their own.
+  if (!_currentUserId) return []
+  return _workspaces.filter((w) => w.owner_id === _currentUserId).map((w) => ({ ...w }))
 }
 
 export async function mockGetWorkspace(id) {
@@ -1205,6 +1240,7 @@ export async function mockCreateWorkspace(payload) {
     currency: payload.currency ?? 'KES',
     created_at: new Date().toISOString().slice(0, 10),
     my_role: 'owner',
+    owner_id: _currentUserId,
     my_permissions: [
       'transactions.read', 'transactions.write', 'transactions.void',
       'budgets.read', 'budgets.write',

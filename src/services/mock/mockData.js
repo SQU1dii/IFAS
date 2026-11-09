@@ -406,6 +406,7 @@ export const MOCK_WORKSPACES = [
     type: 'PERSONAL',
     currency: 'KES',
     created_at: '2024-09-01',
+    owner_id: 'user-001',
     my_role: 'owner',
     my_permissions: [
       'transactions.read', 'transactions.write', 'transactions.void',
@@ -420,6 +421,7 @@ export const MOCK_WORKSPACES = [
     type: 'BUSINESS',
     currency: 'KES',
     created_at: '2024-10-01',
+    owner_id: 'user-001',
     my_role: 'owner',
     my_permissions: [
       'transactions.read', 'transactions.write', 'transactions.void',
@@ -435,6 +437,7 @@ export const MOCK_WORKSPACES = [
     type: 'ORGANIZATION',
     currency: 'KES',
     created_at: '2025-01-15',
+    owner_id: 'user-001',
     my_role: 'admin',
     my_permissions: [
       'transactions.read', 'transactions.write', 'transactions.void',
