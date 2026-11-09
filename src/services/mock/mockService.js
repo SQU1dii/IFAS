@@ -1211,6 +1211,13 @@ export async function mockCreateWorkspace(payload) {
       'members.read', 'members.write',
       'departments.read', 'departments.write',
       'reports.read', 'settings.write',
+      // Extra permissions to ensure owners are never blocked
+      'accounts.read', 'accounts.write',
+      'categories.read', 'categories.write',
+      'savings.read', 'savings.write',
+      'analytics.read',
+      'intelligence.read',
+      'assistant.read',
     ],
   }
   _workspaces.push(ws)

@@ -232,7 +232,8 @@ router.beforeEach((to) => {
   }
 
   // 5. Permission check — server is the real authority; this is UI gating only.
-  if (to.meta.permission && !ws.can(to.meta.permission)) {
+  //    Owners and admins have full access — never block them.
+  if (to.meta.permission && !ws.can(to.meta.permission) && !ws.isOwnerOrAdmin) {
     return { name: 'not-permitted' }
   }
 

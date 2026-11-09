@@ -11,6 +11,7 @@
  */
 import { ref, computed, watch, onMounted } from 'vue'
 import { useUiStore }       from '@/stores/ui'
+import { useWorkspaceStore } from '@/stores/workspace'
 import dashboardService     from '@/services/dashboardService'
 import { resolvePreset, rangeToIso, previousRange } from '@/utils/date'
 import { formatCurrency, formatPercent } from '@/utils/format'
@@ -28,6 +29,7 @@ import SavingsOverview         from '@/components/dashboard/SavingsOverview.vue'
 import InsightsPanel           from '@/components/dashboard/InsightsPanel.vue'
 
 const ui = useUiStore()
+const ws = useWorkspaceStore()
 
 const loading  = ref(true)
 const apiError = ref('')
@@ -72,7 +74,7 @@ const netColor = computed(() => !summary.value ? 'blue' : summary.value.net_cash
 <template>
   <div class="space-y-6 animate-fade-in">
 
-    <PageHeader title="Dashboard" :subtitle="`Financial overview · ${presetLabel}`" />
+    <PageHeader title="Dashboard" :subtitle="`${ws.active?.name ?? ''} · ${presetLabel}`" />
 
     <BaseAlert v-if="apiError" variant="error" dismissible @dismiss="apiError = ''">{{ apiError }}</BaseAlert>
 
