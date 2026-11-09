@@ -90,6 +90,18 @@ let _user          = { ...MOCK_USER }
 let _conversations = {}
 let _idSeq         = 9000
 
+// ── Flat store aliases ───────────────────────────────────────
+// The per-workspace store (_wsStore) is used by dashboard/business/org
+// functions that receive wsId explicitly. But most CRUD functions are
+// called without wsId by the service layer (mock mode doesn't pass it).
+// These flat variables keep those functions working — they seed from
+// the same mock data so the default workspace's data shows everywhere.
+let _transactions  = [...MOCK_TRANSACTIONS]
+let _accounts      = [...MOCK_ACCOUNTS]
+let _budgets       = [...MOCK_BUDGETS]
+let _savings       = [...MOCK_SAVINGS_GOALS]
+let _contributions = MOCK_CONTRIBUTIONS.map((c) => ({ ...c }))
+
 // Track the current user so refresh doesn't overwrite with the default mock user.
 let _currentUserId = null
 
@@ -1239,21 +1251,16 @@ export async function mockCreateWorkspace(payload) {
     type: payload.type,
     currency: payload.currency ?? 'KES',
     created_at: new Date().toISOString().slice(0, 10),
-    my_role: 'owner',
+    my_role: payload.type === 'PERSONAL' ? 'PERSONAL Owner' : payload.type === 'BUSINESS' ? 'BUSINESS Owner' : 'ORGANIZATION Admin',
     owner_id: _currentUserId,
     my_permissions: [
-      'transactions.read', 'transactions.write', 'transactions.void',
-      'budgets.read', 'budgets.write',
-      'members.read', 'members.write',
-      'departments.read', 'departments.write',
-      'reports.read', 'settings.write',
-      // Extra permissions to ensure owners are never blocked
-      'accounts.read', 'accounts.write',
-      'categories.read', 'categories.write',
-      'savings.read', 'savings.write',
-      'analytics.read',
-      'intelligence.read',
-      'assistant.read',
+      'workspace.manage', 'members.manage',
+      'accounts.manage',
+      'transactions.view', 'transactions.create', 'transactions.edit', 'transactions.import',
+      'budgets.manage', 'goals.manage',
+      'dashboard.view', 'reports.generate', 'analytics.view',
+      'alerts.review', 'assistant.use',
+      ...(payload.type !== 'PERSONAL' ? ['departments.manage'] : []),
     ],
   }
   _workspaces.push(ws)

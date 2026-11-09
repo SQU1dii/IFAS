@@ -37,22 +37,19 @@ async function load() {
 onMounted(load)
 
 // ── Account type options ──────────────────────────────────
+// ── Account type options ──────────────────────────────────
+// Match the backend's ACCOUNT_TYPES constant exactly.
 const typeOptions = [
-  { value: 'checking',     label: 'Checking / Current' },
-  { value: 'savings',      label: 'Savings'            },
-  { value: 'mobile_money', label: 'Mobile Money (M-Pesa)' },
-  { value: 'credit',       label: 'Credit Card'        },
-  { value: 'cash',         label: 'Cash'               },
-  { value: 'investment',   label: 'Investment / CMA'   },
-  { value: 'sacco',        label: 'SACCO'              },
-  { value: 'other',        label: 'Other'              },
+  { value: 'BANK',         label: 'Bank Account'           },
+  { value: 'MOBILE_MONEY', label: 'Mobile Money (M-Pesa)' },
+  { value: 'CASH',         label: 'Cash'                    },
 ]
 
 const accountTypeLabel = (t) =>
   typeOptions.find((o) => o.value === t)?.label ?? t
 
 const accountTypeBadge = (t) =>
-  ({ checking: 'green', savings: 'blue', mobile_money: 'green', credit: 'red', investment: 'purple', sacco: 'amber', cash: 'neutral' })[t] ?? 'neutral'
+  ({ BANK: 'green', MOBILE_MONEY: 'blue', CASH: 'neutral' })[t] ?? 'neutral'
 
 // ── Add / Edit modal ──────────────────────────────────────
 const modalOpen     = ref(false)
@@ -153,7 +150,7 @@ async function handleDeactivate() {
             <li v-for="acc in active" :key="acc.id" class="flex items-center gap-4 py-4">
               <!-- Icon -->
               <span class="shrink-0 h-10 w-10 rounded-xl bg-slate-100 flex items-center justify-center text-lg" aria-hidden="true">
-                {{ { checking: '🏦', savings: '💰', mobile_money: '📱', credit: '💳', investment: '📈', sacco: '🤝', cash: '💵', other: '🏧' }[acc.type] ?? '🏧' }}
+                {{ { BANK: '🏦', MOBILE_MONEY: '📱', CASH: '💵' }[acc.type] ?? '🏧' }}
               </span>
               <!-- Info -->
               <div class="flex-1 min-w-0">
@@ -201,7 +198,7 @@ async function handleDeactivate() {
             <ul class="divide-y divide-slate-100">
               <li v-for="acc in inactive" :key="acc.id" class="flex items-center gap-4 py-3 opacity-60">
                 <span class="shrink-0 h-9 w-9 rounded-xl bg-slate-100 flex items-center justify-center text-base" aria-hidden="true">
-                  {{ { checking: '🏦', savings: '💰', mobile_money: '📱', credit: '💳' }[acc.type] ?? '🏧' }}
+                  {{ { BANK: '🏦', MOBILE_MONEY: '📱', CASH: '💵' }[acc.type] ?? '🏧' }}
                 </span>
                 <div class="flex-1 min-w-0">
                   <p class="text-sm font-medium text-navy-700 truncate">{{ acc.name }}</p>

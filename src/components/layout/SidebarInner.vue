@@ -41,7 +41,7 @@ const wsTypeLabel = computed(() => ({
 // wsTypes: undefined = show in all; string[] = restrict to listed types
 // permission: undefined = always show; string = hide if not permitted
 const ALL_NAV = [
-  { name: 'Dashboard',              to: '/',             icon: 'home',         exact: true },
+  { name: 'Dashboard',              to: '/',             icon: 'home',         exact: true, permission: 'dashboard.view' },
   { name: 'Transactions',           to: '/transactions', icon: 'transactions', permission: 'transactions.view' },
   { name: 'Income',                 to: '/income',       icon: 'income',       permission: 'transactions.view' },
   { name: 'Expenses',               to: '/expenses',     icon: 'expenses',     permission: 'transactions.view' },
