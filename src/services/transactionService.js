@@ -2,9 +2,8 @@
  * Transaction service — workspace-scoped.
  * All paths: /workspaces/:id/transactions
  *
- * Void: POST /workspaces/:id/transactions/:tid/void
- * CSV import step 1: POST /workspaces/:id/imports (preview)
- * CSV import step 2: POST /workspaces/:id/imports/:iid/confirm
+ * wsId() is passed to every mock function so the per-workspace
+ * in-memory slice is used consistently.
  */
 import api from './api'
 import { useWorkspaceStore } from '@/stores/workspace'
@@ -20,9 +19,12 @@ import {
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true'
 
-// Shared helper — reads the active workspace id from the store.
-function wsId() { return useWorkspaceStore().wsId }
-function wsPath(path = '') { return `/workspaces/${wsId()}${path}` }
+function wsPath(path = '') {
+  return `/workspaces/${useWorkspaceStore().wsId}${path}`
+}
+function wsId() {
+  return useWorkspaceStore().wsId ?? 'ws-personal'
+}
 
 export default {
   async list(params = {}) {
@@ -32,30 +34,30 @@ export default {
   },
 
   async get(id) {
-    if (USE_MOCK) return mockGetTransaction(id)
+    if (USE_MOCK) return mockGetTransaction(id, wsId())
     const res = await api.get(wsPath(`/transactions/${id}`))
     return res.data
   },
 
   async create(payload) {
-    if (USE_MOCK) return mockCreateTransaction({ ...payload, wsId: wsId() })
+    if (USE_MOCK) return mockCreateTransaction(payload, wsId())
     const res = await api.post(wsPath('/transactions'), payload)
     return res.data
   },
 
   async update(id, payload) {
-    if (USE_MOCK) return mockUpdateTransaction(id, { ...payload, wsId: wsId() })
+    if (USE_MOCK) return mockUpdateTransaction(id, payload, wsId())
     const res = await api.patch(wsPath(`/transactions/${id}`), payload)
     return res.data
   },
 
   async remove(id) {
-    if (USE_MOCK) return mockDeleteTransaction(id)
+    if (USE_MOCK) return mockDeleteTransaction(id, wsId())
     await api.delete(wsPath(`/transactions/${id}`))
   },
 
   async void(id) {
-    if (USE_MOCK) return mockDeleteTransaction(id)
+    if (USE_MOCK) return mockDeleteTransaction(id, wsId())
     const res = await api.post(wsPath(`/transactions/${id}/void`))
     return res.data
   },

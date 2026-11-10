@@ -14,8 +14,8 @@ import {
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true'
 
-function wsId()         { return useWorkspaceStore().wsId }
-function wsPath(p = '') { return `/workspaces/${wsId()}${p}` }
+function wsPath(path = '') { return `/workspaces/${useWorkspaceStore().wsId}${path}` }
+function wsId()            { return useWorkspaceStore().wsId ?? 'ws-personal' }
 
 export default {
   async list() {
@@ -31,13 +31,13 @@ export default {
   },
 
   async create(payload) {
-    if (USE_MOCK) return mockCreateAccount({ ...payload, wsId: wsId() })
+    if (USE_MOCK) return mockCreateAccount(payload, wsId())
     const res = await api.post(wsPath('/accounts'), payload)
     return res.data
   },
 
   async update(id, payload) {
-    if (USE_MOCK) return mockUpdateAccount(id, { ...payload, wsId: wsId() })
+    if (USE_MOCK) return mockUpdateAccount(id, payload, wsId())
     const res = await api.patch(wsPath(`/accounts/${id}`), payload)
     return res.data
   },

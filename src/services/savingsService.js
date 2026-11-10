@@ -16,8 +16,8 @@ import {
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true'
 
-function wsId()         { return useWorkspaceStore().wsId }
-function wsPath(p = '') { return `/workspaces/${wsId()}${p}` }
+function wsPath(path = '') { return `/workspaces/${useWorkspaceStore().wsId}${path}` }
+function wsId()            { return useWorkspaceStore().wsId ?? 'ws-personal' }
 
 export default {
   async list() {
@@ -33,13 +33,13 @@ export default {
   },
 
   async create(payload) {
-    if (USE_MOCK) return mockCreateSavingsGoal({ ...payload, wsId: wsId() })
+    if (USE_MOCK) return mockCreateSavingsGoal(payload, wsId())
     const res = await api.post(wsPath('/savings-goals'), payload)
     return res.data
   },
 
   async update(id, payload) {
-    if (USE_MOCK) return mockUpdateSavingsGoal(id, { ...payload, wsId: wsId() })
+    if (USE_MOCK) return mockUpdateSavingsGoal(id, payload, wsId())
     const res = await api.patch(wsPath(`/savings-goals/${id}`), payload)
     return res.data
   },
@@ -56,7 +56,7 @@ export default {
   },
 
   async addContribution(goalId, payload) {
-    if (USE_MOCK) return mockAddContribution(goalId, { ...payload, wsId: wsId() })
+    if (USE_MOCK) return mockAddContribution(goalId, payload, wsId())
     const res = await api.post(wsPath(`/savings-goals/${goalId}/contributions`), payload)
     return res.data
   },

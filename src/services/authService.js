@@ -73,8 +73,10 @@ export default {
 
   // Reference data — workspace-scoped (categories and accounts for form dropdowns).
   async getCategories() {
-    if (USE_MOCK) return mockGetCategories()
-    // Use workspace-scoped categories (not the global /categories template list)
+    if (USE_MOCK) {
+      const { useWorkspaceStore } = await import('@/stores/workspace')
+      return mockGetCategories(useWorkspaceStore().wsId ?? 'ws-personal')
+    }
     const { useWorkspaceStore } = await import('@/stores/workspace')
     const ws = useWorkspaceStore()
     const res = await api.get(`/workspaces/${ws.wsId}/categories`)
@@ -82,7 +84,10 @@ export default {
   },
 
   async getAccounts() {
-    if (USE_MOCK) return mockGetAccounts()
+    if (USE_MOCK) {
+      const { useWorkspaceStore } = await import('@/stores/workspace')
+      return mockGetAccounts(useWorkspaceStore().wsId ?? 'ws-personal')
+    }
     const { useWorkspaceStore } = await import('@/stores/workspace')
     const ws = useWorkspaceStore()
     const res = await api.get(`/workspaces/${ws.wsId}/accounts`)
