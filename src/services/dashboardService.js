@@ -3,11 +3,6 @@
  *
  * GET /workspaces/:id/dashboard?from=&to=&department=&category=
  *
- * Returns a payload shaped for the active workspace type:
- *   PERSONAL     → F3 personal summary
- *   BUSINESS     → F4 business summary (via workspaceService)
- *   ORGANIZATION → F5 org summary    (via workspaceService)
- *
  * The frontend DISPLAYS what the backend returns — never recalculates.
  */
 import api from './api'

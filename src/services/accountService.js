@@ -14,38 +14,36 @@ import {
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true'
 
-function wsPath(path = '') {
-  const ws = useWorkspaceStore()
-  return `/workspaces/${ws.wsId}${path}`
-}
+function wsId()         { return useWorkspaceStore().wsId }
+function wsPath(p = '') { return `/workspaces/${wsId()}${p}` }
 
 export default {
   async list() {
-    if (USE_MOCK) return mockGetAccounts()
+    if (USE_MOCK) return mockGetAccounts(wsId())
     const res = await api.get(wsPath('/accounts'))
     return res.data
   },
 
   async get(id) {
-    if (USE_MOCK) return mockGetAccount(id)
+    if (USE_MOCK) return mockGetAccount(id, wsId())
     const res = await api.get(wsPath(`/accounts/${id}`))
     return res.data
   },
 
   async create(payload) {
-    if (USE_MOCK) return mockCreateAccount(payload)
+    if (USE_MOCK) return mockCreateAccount({ ...payload, wsId: wsId() })
     const res = await api.post(wsPath('/accounts'), payload)
     return res.data
   },
 
   async update(id, payload) {
-    if (USE_MOCK) return mockUpdateAccount(id, payload)
+    if (USE_MOCK) return mockUpdateAccount(id, { ...payload, wsId: wsId() })
     const res = await api.patch(wsPath(`/accounts/${id}`), payload)
     return res.data
   },
 
   async deactivate(id) {
-    if (USE_MOCK) return mockDeleteAccount(id)
+    if (USE_MOCK) return mockDeleteAccount(id, wsId())
     await api.delete(wsPath(`/accounts/${id}`))
   },
 }

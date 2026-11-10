@@ -380,20 +380,21 @@ export async function mockCsvConfirm(validRows) {
 
 // ── Accounts ─────────────────────────────────────────────────
 
-export async function mockGetAccounts() {
+export async function mockGetAccounts(wsId = 'ws-personal') {
   await delay()
-  return [..._accounts]
+  return [...getSlice(wsId).accounts]
 }
 
-export async function mockGetAccount(id) {
+export async function mockGetAccount(id, wsId = 'ws-personal') {
   await delay()
-  const a = _accounts.find((a) => a.id === id)
+  const a = getSlice(wsId).accounts.find((a) => a.id === id)
   if (!a) throw { message: 'Account not found.', status: 404 }
   return a
 }
 
-export async function mockCreateAccount(payload) {
+export async function mockCreateAccount(payload, wsId = 'ws-personal') {
   await delay()
+  const slice = getSlice(wsId)
   const acc = {
     id: nextId('acc'),
     name: payload.name,
@@ -404,31 +405,34 @@ export async function mockCreateAccount(payload) {
     is_active: true,
     created_at: new Date().toISOString().slice(0, 10),
   }
-  _accounts.push(acc)
+  slice.accounts.push(acc)
   return acc
 }
 
-export async function mockUpdateAccount(id, payload) {
+export async function mockUpdateAccount(id, payload, wsId = 'ws-personal') {
   await delay()
-  const idx = _accounts.findIndex((a) => a.id === id)
+  const slice = getSlice(wsId)
+  const idx = slice.accounts.findIndex((a) => a.id === id)
   if (idx === -1) throw { message: 'Account not found.', status: 404 }
-  _accounts[idx] = { ..._accounts[idx], ...payload }
+  slice.accounts[idx] = { ...slice.accounts[idx], ...payload }
   return _accounts[idx]
 }
 
-export async function mockDeleteAccount(id) {
+export async function mockDeleteAccount(id, wsId = 'ws-personal') {
   await delay()
-  const idx = _accounts.findIndex((a) => a.id === id)
+  const slice = getSlice(wsId)
+  const idx = slice.accounts.findIndex((a) => a.id === id)
   if (idx === -1) throw { message: 'Account not found.', status: 404 }
-  // Soft-delete: mark inactive.
-  _accounts[idx] = { ..._accounts[idx], is_active: false }
+  slice.accounts[idx] = { ...slice.accounts[idx], is_active: false }
   return {}
 }
 
 // ── Categories ────────────────────────────────────────────────
 
-export async function mockGetCategories() {
+export async function mockGetCategories(wsId = 'ws-personal') {
   await delay(150)
+  // Categories are reference data — return the global set for all workspaces.
+  // The real backend seeds default categories when a workspace is created.
   return [...MOCK_CATEGORIES]
 }
 
@@ -459,24 +463,24 @@ export async function mockMarkAllNotificationsRead() {
  * current-period spending, remaining, utilization, and status.
  * The frontend DISPLAYS these values; it never recalculates them.
  */
-export async function mockGetBudgets() {
+export async function mockGetBudgets(wsId = 'ws-personal') {
   await delay()
-  return computeBudgetUtilization(_transactions, new Date().toISOString().slice(0, 10))
+  const slice = getSlice(wsId)
+  return computeBudgetUtilization(slice.transactions, slice.budgets, new Date().toISOString().slice(0, 10))
 }
 
-export async function mockGetBudget(id) {
+export async function mockGetBudget(id, wsId = 'ws-personal') {
   await delay()
-  const b = _budgets.find((b) => b.id === id)
+  const slice = getSlice(wsId)
+  const b = slice.budgets.find((b) => b.id === id)
   if (!b) throw { message: 'Budget not found.', status: 404 }
-  // Enrich with current utilization
-  const [enriched] = computeBudgetUtilization(_transactions, new Date().toISOString().slice(0, 10))
-    .filter((x) => x.id === id)
+  const enriched = computeBudgetUtilization(slice.transactions, slice.budgets, new Date().toISOString().slice(0, 10)).find((x) => x.id === id)
   return enriched ?? b
 }
 
-export async function mockCreateBudget(payload) {
+export async function mockCreateBudget(payload, wsId = 'ws-personal') {
   await delay()
-  // Enforce period constraint: monthly or yearly only.
+  const slice = getSlice(wsId)
   if (!['monthly', 'yearly'].includes(payload.period)) {
     throw { message: 'period must be "monthly" or "yearly".', status: 422 }
   }
@@ -489,13 +493,14 @@ export async function mockCreateBudget(payload) {
     period:        payload.period,
     notes:         payload.notes ?? '',
   }
-  _budgets.push(bud)
+  slice.budgets.push(bud)
   return bud
 }
 
-export async function mockUpdateBudget(id, payload) {
+export async function mockUpdateBudget(id, payload, wsId = 'ws-personal') {
   await delay()
-  const idx = _budgets.findIndex((b) => b.id === id)
+  const slice = getSlice(wsId)
+  const idx = slice.budgets.findIndex((b) => b.id === id)
   if (idx === -1) throw { message: 'Budget not found.', status: 404 }
   if (payload.period && !['monthly', 'yearly'].includes(payload.period)) {
     throw { message: 'period must be "monthly" or "yearly".', status: 422 }
@@ -503,40 +508,41 @@ export async function mockUpdateBudget(id, payload) {
   const cat = payload.category_id
     ? MOCK_CATEGORIES.find((c) => c.id === payload.category_id)
     : null
-  _budgets[idx] = {
-    ..._budgets[idx],
+  slice.budgets[idx] = {
+    ...slice.budgets[idx],
     ...payload,
-    limit: payload.limit != null ? Number(payload.limit) : _budgets[idx].limit,
-    category_name: cat?.name ?? _budgets[idx].category_name,
+    limit: payload.limit != null ? Number(payload.limit) : slice.budgets[idx].limit,
+    category_name: cat?.name ?? slice.budgets[idx].category_name,
   }
-  return _budgets[idx]
+  return slice.budgets[idx]
 }
 
-export async function mockDeleteBudget(id) {
+export async function mockDeleteBudget(id, wsId = 'ws-personal') {
   await delay()
-  const idx = _budgets.findIndex((b) => b.id === id)
+  const slice = getSlice(wsId)
+  const idx = slice.budgets.findIndex((b) => b.id === id)
   if (idx === -1) throw { message: 'Budget not found.', status: 404 }
-  _budgets.splice(idx, 1)
+  slice.budgets.splice(idx, 1)
   return {}
 }
 
 // ── Savings Goals ─────────────────────────────────────────────
 
-export async function mockGetSavingsGoals() {
+export async function mockGetSavingsGoals(wsId = 'ws-personal') {
   await delay()
-  // Enrich with derived progress fields so views never calculate totals.
-  return _savings.map((g) => enrichGoal(g))
+  return getSlice(wsId).savings.map((g) => enrichGoal(g))
 }
 
-export async function mockGetSavingsGoal(id) {
+export async function mockGetSavingsGoal(id, wsId = 'ws-personal') {
   await delay()
-  const g = _savings.find((g) => g.id === id)
+  const g = getSlice(wsId).savings.find((g) => g.id === id)
   if (!g) throw { message: 'Savings goal not found.', status: 404 }
   return enrichGoal(g)
 }
 
-export async function mockCreateSavingsGoal(payload) {
+export async function mockCreateSavingsGoal(payload, wsId = 'ws-personal') {
   await delay()
+  const slice = getSlice(wsId)
   const goal = {
     id:             nextId('goal'),
     name:           payload.name,
@@ -545,13 +551,12 @@ export async function mockCreateSavingsGoal(payload) {
     target_date:    payload.target_date ?? null,
     notes:          payload.notes ?? '',
   }
-  _savings.push(goal)
-  // Record initial contribution if provided
+  slice.savings.push(goal)
   if (goal.current_amount > 0) {
-    _contributions.push({
-      id:     nextId('con'),
+    slice.contributions.push({
+      id:      nextId('con'),
       goal_id: goal.id,
-      date:   new Date().toISOString().slice(0, 10),
+      date:    new Date().toISOString().slice(0, 10),
       amount:  goal.current_amount,
       type:   'contribution',
       notes:  'Initial deposit',
@@ -560,27 +565,28 @@ export async function mockCreateSavingsGoal(payload) {
   return enrichGoal(goal)
 }
 
-export async function mockUpdateSavingsGoal(id, payload) {
+export async function mockUpdateSavingsGoal(id, payload, wsId = 'ws-personal') {
   await delay()
-  const idx = _savings.findIndex((g) => g.id === id)
+  const slice = getSlice(wsId)
+  const idx = slice.savings.findIndex((g) => g.id === id)
   if (idx === -1) throw { message: 'Savings goal not found.', status: 404 }
-  _savings[idx] = {
-    ..._savings[idx],
-    name:          payload.name          ?? _savings[idx].name,
-    target_amount: payload.target_amount != null ? Number(payload.target_amount) : _savings[idx].target_amount,
-    target_date:   payload.target_date   ?? _savings[idx].target_date,
-    notes:         payload.notes         ?? _savings[idx].notes,
+  slice.savings[idx] = {
+    ...slice.savings[idx],
+    name:          payload.name          ?? slice.savings[idx].name,
+    target_amount: payload.target_amount != null ? Number(payload.target_amount) : slice.savings[idx].target_amount,
+    target_date:   payload.target_date   ?? slice.savings[idx].target_date,
+    notes:         payload.notes         ?? slice.savings[idx].notes,
   }
-  return enrichGoal(_savings[idx])
+  return enrichGoal(slice.savings[idx])
 }
 
-export async function mockDeleteSavingsGoal(id) {
+export async function mockDeleteSavingsGoal(id, wsId = 'ws-personal') {
   await delay()
-  const idx = _savings.findIndex((g) => g.id === id)
+  const slice = getSlice(wsId)
+  const idx = slice.savings.findIndex((g) => g.id === id)
   if (idx === -1) throw { message: 'Savings goal not found.', status: 404 }
-  _savings.splice(idx, 1)
-  // Also remove all contributions for this goal.
-  _contributions = _contributions.filter((c) => c.goal_id !== id)
+  slice.savings.splice(idx, 1)
+  slice.contributions = slice.contributions.filter((c) => c.goal_id !== id)
   return {}
 }
 
@@ -590,9 +596,9 @@ export async function mockDeleteSavingsGoal(id) {
  * GET /savings-goals/:id/contributions — history for one goal,
  * sorted newest first.
  */
-export async function mockGetContributions(goalId) {
+export async function mockGetContributions(goalId, wsId = 'ws-personal') {
   await delay()
-  return _contributions
+  return getSlice(wsId).contributions
     .filter((c) => c.goal_id === goalId)
     .sort((a, b) => (a.date < b.date ? 1 : -1))
 }
@@ -604,9 +610,10 @@ export async function mockGetContributions(goalId) {
  * Adjusts current_amount on the goal. Withdrawals cannot exceed
  * the current balance (enforced here; backend also validates).
  */
-export async function mockAddContribution(goalId, payload) {
+export async function mockAddContribution(goalId, payload, wsId = 'ws-personal') {
   await delay()
-  const gIdx = _savings.findIndex((g) => g.id === goalId)
+  const slice = getSlice(wsId)
+  const gIdx = slice.savings.findIndex((g) => g.id === goalId)
   if (gIdx === -1) throw { message: 'Savings goal not found.', status: 404 }
 
   const amt  = Number(payload.amount)
@@ -618,17 +625,16 @@ export async function mockAddContribution(goalId, payload) {
   if (amt <= 0) {
     throw { message: 'Amount must be greater than 0.', status: 422 }
   }
-  if (type === 'withdrawal' && amt > _savings[gIdx].current_amount) {
+  if (type === 'withdrawal' && amt > slice.savings[gIdx].current_amount) {
     throw { message: 'Withdrawal exceeds available balance.', status: 422 }
   }
 
-  // Update the goal balance.
-  _savings[gIdx] = {
-    ..._savings[gIdx],
+  slice.savings[gIdx] = {
+    ...slice.savings[gIdx],
     current_amount:
       type === 'contribution'
         ? _savings[gIdx].current_amount + amt
-        : _savings[gIdx].current_amount - amt,
+        : slice.savings[gIdx].current_amount - amt,
   }
 
   const entry = {
@@ -639,9 +645,9 @@ export async function mockAddContribution(goalId, payload) {
     type,
     notes:   payload.notes ?? '',
   }
-  _contributions.push(entry)
+  slice.contributions.push(entry)
 
-  return { contribution: entry, goal: enrichGoal(_savings[gIdx]) }
+  return { contribution: entry, goal: enrichGoal(slice.savings[gIdx]) }
 }
 
 // ── Private goal helper ───────────────────────────────────────
@@ -791,13 +797,13 @@ function buildInsights(period, budgets, previous) {
  * category_id filter so the Analytics page can drill into one
  * category's trend.
  */
-export async function mockGetMonthly({ months = 12, category_id, account_id } = {}) {
+export async function mockGetMonthly({ months = 12, category_id, account_id, wsId = 'ws-personal' } = {}) {
   await delay()
   const txns = category_id
-    ? _transactions.filter((t) => t.category_id === category_id)
+    ? getSlice(wsId).transactions.filter((t) => t.category_id === category_id)
     : account_id
-    ? _transactions.filter((t) => t.account_id === account_id || t.destination_account_id === account_id)
-    : _transactions
+    ? getSlice(wsId).transactions.filter((t) => t.account_id === account_id || t.destination_account_id === account_id)
+    : getSlice(wsId).transactions
 
   return buildMonthlySeries(txns, months)
 }
@@ -807,10 +813,10 @@ export async function mockGetMonthly({ months = 12, category_id, account_id } = 
  * Returns spending totals per expense category for a date range,
  * plus a month-by-month breakdown per category (for stacked charts).
  */
-export async function mockGetCategoryAnalytics({ from, to, months = 6 } = {}) {
+export async function mockGetCategoryAnalytics({ from, to, months = 6, wsId = 'ws-personal' } = {}) {
   await delay()
-  // Overall totals for the requested period
-  const period = aggregate(_transactions, from, to)
+  const wsTxns = getSlice(wsId).transactions
+  const period = aggregate(wsTxns, from, to)
 
   // Per-category month series (for trend lines per category)
   const now = new Date()
@@ -822,7 +828,7 @@ export async function mockGetCategoryAnalytics({ from, to, months = 6 } = {}) {
     const end   = new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().slice(0, 10)
     const label = d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' })
 
-    const monthExpenses = _transactions.filter(
+    const monthExpenses = wsTxns.filter(
       (t) => t.type === 'expense' && inRange(t.date, start, end)
     )
     const catMap = {}
@@ -848,9 +854,10 @@ export async function mockGetCategoryAnalytics({ from, to, months = 6 } = {}) {
  * plus the month-by-month income/expenses/net already built by the
  * monthly helper. Used for the Cash Flow section on the Analytics page.
  */
-export async function mockGetCashFlow({ months = 12, from, to } = {}) {
+export async function mockGetCashFlow({ months = 12, from, to, wsId = 'ws-personal' } = {}) {
   await delay()
-  const monthly = buildMonthlySeries(_transactions, months)
+  const wsTxns = getSlice(wsId).transactions
+  const monthly = buildMonthlySeries(wsTxns, months)
 
   // Cumulative net — running total from the first month
   let cumulative = 0
@@ -867,18 +874,19 @@ export async function mockGetCashFlow({ months = 12, from, to } = {}) {
  * Returns per-budget planned vs actual for up to `months` months back.
  * Each entry has { category_name, period, limit, series: [{label, spent}] }.
  */
-export async function mockGetBudgetPerformance({ months = 6 } = {}) {
+export async function mockGetBudgetPerformance({ months = 6, wsId = 'ws-personal' } = {}) {
   await delay()
+  const slice = getSlice(wsId)
   const now = new Date()
 
-  const result = _budgets.map((b) => {
+  const result = slice.budgets.map((b) => {
     const series = []
     for (let i = months - 1; i >= 0; i--) {
       const d     = new Date(now.getFullYear(), now.getMonth() - i, 1)
       const start = new Date(d.getFullYear(), d.getMonth(), 1).toISOString().slice(0, 10)
       const end   = new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().slice(0, 10)
       const label = d.toLocaleDateString('en-US', { month: 'short', year: '2-digit' })
-      const spent = _transactions
+      const spent = slice.transactions
         .filter((t) => t.type === 'expense' && t.category_id === b.category_id && inRange(t.date, start, end))
         .reduce((s, t) => s + t.amount, 0)
       series.push({ label, spent, limit: b.limit })
@@ -901,11 +909,11 @@ export async function mockGetBudgetPerformance({ months = 6 } = {}) {
  * Returns month-by-month contribution totals per savings goal,
  * plus each goal's cumulative balance over time.
  */
-export async function mockGetSavingsTrends() {
+export async function mockGetSavingsTrends(wsId = 'ws-personal') {
   await delay()
-  const result = _savings.map((g) => {
-    // Sort contributions for this goal oldest first
-    const contribs = _contributions
+  const slice = getSlice(wsId)
+  const result = slice.savings.map((g) => {
+    const contribs = slice.contributions
       .filter((c) => c.goal_id === g.id)
       .sort((a, b) => (a.date > b.date ? 1 : -1))
 
@@ -944,14 +952,15 @@ export async function mockGetSavingsTrends() {
  * Returns the same totals the dashboard shows but with full category
  * breakdown, account breakdown, and period metadata.
  */
-export async function mockGetReportSummary({ from, to } = {}) {
-  await delay(600) // Reports are heavier — slightly longer delay
+export async function mockGetReportSummary({ from, to, wsId = 'ws-personal' } = {}) {
+  await delay(600)
+  const wsTxns = getSlice(wsId).transactions
+  const slice  = getSlice(wsId)
 
-  const period   = aggregate(_transactions, from, to)
-  const budgets  = computeBudgetUtilization(_transactions, to || new Date().toISOString().slice(0, 10))
+  const period   = aggregate(wsTxns, from, to)
+  const budgets  = computeBudgetUtilization(wsTxns, slice.budgets, to || new Date().toISOString().slice(0, 10))
 
-  // Income by category
-  const incomeFiltered = _transactions.filter(
+  const incomeFiltered = wsTxns.filter(
     (t) => t.type === 'income' && inRange(t.date, from, to)
   )
   const incomeByCategory = {}
@@ -968,7 +977,7 @@ export async function mockGetReportSummary({ from, to } = {}) {
 
   // By account
   const accountMap = {}
-  const allPeriod = _transactions.filter((t) => inRange(t.date, from, to) && t.type !== 'transfer')
+  const allPeriod = wsTxns.filter((t) => inRange(t.date, from, to) && t.type !== 'transfer')
   for (const t of allPeriod) {
     const key = t.account_name ?? 'Unknown'
     if (!accountMap[key]) accountMap[key] = { income: 0, expenses: 0 }
@@ -1008,10 +1017,12 @@ export async function mockGetReportSummary({ from, to } = {}) {
  * dashboard, but returns more detail and labels each as 'rule_based').
  * The IntelligenceView shows additional metadata not shown on dashboard.
  */
-export async function mockGetInsights({ from, to } = {}) {
+export async function mockGetInsights({ from, to, wsId = 'ws-personal' } = {}) {
   await delay()
-  const period  = aggregate(_transactions, from, to)
-  const budgets = computeBudgetUtilization(_transactions, to || new Date().toISOString().slice(0, 10))
+  const wsTxns = getSlice(wsId).transactions
+  const slice = getSlice(wsId)
+  const period  = aggregate(wsTxns, from, to)
+  const budgets = computeBudgetUtilization(wsTxns, slice.budgets, to || new Date().toISOString().slice(0, 10))
 
   // Re-run insight engine with extended detail
   const basic = buildInsights(period, budgets, null)
@@ -1032,11 +1043,11 @@ export async function mockGetInsights({ from, to } = {}) {
  * ⚠ This is a mock approximation only.  Real forecasts come from the
  * backend model.  The view must show these as estimates.
  */
-export async function mockGetForecast({ horizon_months = 3 } = {}) {
+export async function mockGetForecast({ horizon_months = 3, wsId = 'ws-personal' } = {}) {
   await delay(700)
+  const wsTxns = getSlice(wsId).transactions
 
-  // Use 6-month history as the basis
-  const history = buildMonthlySeries(_transactions, 6)
+  const history = buildMonthlySeries(wsTxns, 6)
   // Spec requires 6+ months of data for a forecast.
   if (history.length < 6) {
     return { insufficient_data: true, message: 'At least 6 months of transaction history is needed to generate a forecast. You currently have ' + history.length + ' months.' }
@@ -1111,8 +1122,9 @@ export async function mockGetForecast({ horizon_months = 3 } = {}) {
  * Returns items only when actual anomalies exist; otherwise returns
  * an empty array so the view shows a proper empty state.
  */
-export async function mockGetAnomalies({ from, to } = {}) {
+export async function mockGetAnomalies({ from, to, wsId = 'ws-personal' } = {}) {
   await delay(500)
+  const wsTxns = getSlice(wsId).transactions
 
   // Build per-category average from the last 90 days of history
   const historyEnd   = new Date()
@@ -1120,7 +1132,7 @@ export async function mockGetAnomalies({ from, to } = {}) {
   const histEnd      = historyEnd.toISOString().slice(0, 10)
 
   const catHistory = {}
-  for (const t of _transactions) {
+  for (const t of wsTxns) {
     if (t.type !== 'expense') continue
     if (!inRange(t.date, historyStart, histEnd)) continue
     const key = t.category_id ?? 'unknown'
@@ -1136,7 +1148,7 @@ export async function mockGetAnomalies({ from, to } = {}) {
   }
 
   // Flag transactions where amount > mean + 2*std and amount > $50
-  const periodTxns = _transactions.filter(
+  const periodTxns = wsTxns.filter(
     (t) => t.type === 'expense' && inRange(t.date, from, to)
   )
 
@@ -1170,10 +1182,11 @@ export async function mockGetAnomalies({ from, to } = {}) {
  * spend, trend direction, and a simple textual observation.
  * Source is labeled 'rule_based' (not a ML model prediction).
  */
-export async function mockGetSpendingPatterns({ months = 6 } = {}) {
+export async function mockGetSpendingPatterns({ months = 6, wsId = 'ws-personal' } = {}) {
   await delay(450)
+  const wsTxns = getSlice(wsId).transactions
 
-  const series = buildMonthlySeries(_transactions, months)
+  const series = buildMonthlySeries(wsTxns, months)
   const catMonths = {}
 
   for (let i = 0; i < series.length; i++) {
@@ -1183,7 +1196,7 @@ export async function mockGetSpendingPatterns({ months = 6 } = {}) {
     const end   = new Date(base.getFullYear(), base.getMonth() + 1, 0).toISOString().slice(0, 10)
     const label = series[i].label
 
-    const monthExp = _transactions.filter(
+    const monthExp = wsTxns.filter(
       (t) => t.type === 'expense' && inRange(t.date, start, end)
     )
     for (const t of monthExp) {
@@ -1370,8 +1383,10 @@ export async function mockListRecommendations(wsId) {
 // ── Business dashboard ─────────────────────────────────────────
 export async function mockGetBusinessDashboard(wsId, params = {}) {
   await delay()
-  const monthly = buildMonthlySeries(_transactions, 6)
-  const budgets = computeBudgetUtilization(_transactions, new Date().toISOString().slice(0, 10))
+  const wsTxns = getSlice(wsId).transactions
+  const slice = getSlice(wsId)
+  const monthly = buildMonthlySeries(wsTxns, 6)
+  const budgets = computeBudgetUtilization(wsTxns, slice.budgets, new Date().toISOString().slice(0, 10))
   const alerts  = _alerts.filter((a) => a.workspace_id === wsId && a.status === 'open')
 
   return {
@@ -1385,7 +1400,7 @@ export async function mockGetBusinessDashboard(wsId, params = {}) {
       variance: b.remaining,
     })),
     top_expense_categories: monthly.length
-      ? aggregate(_transactions,
+      ? aggregate(wsTxns,
           monthly[0]?.month + '-01',
           new Date().toISOString().slice(0, 10)
         ).spendingByCategory.slice(0, 5)
@@ -1400,8 +1415,8 @@ export async function mockGetOrgDashboard(wsId, params = {}) {
   const depts = await mockListDepartments(wsId)
   const alerts = _alerts.filter((a) => a.workspace_id === wsId && a.status === 'open')
 
-  // Build per-dept monthly trend (simplified — use transactions as proxy)
-  const monthly = buildMonthlySeries(_transactions, 6)
+  const wsTxns = getSlice(wsId).transactions
+  const monthly = buildMonthlySeries(wsTxns, 6)
 
   return {
     ...MOCK_ORG_SUMMARY,

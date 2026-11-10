@@ -1,54 +1,31 @@
 /**
  * Reports service — workspace-scoped.
- * GET  /workspaces/:id/reports?type=&from=&to=&format=
+ * GET /workspaces/:id/reports?type=&from=&to=&format=
  */
 import api from './api'
 import { useWorkspaceStore } from '@/stores/workspace'
 import { mockGetReportSummary } from './mock/mockService'
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true'
-// Note: CSV export uses the api instance which has the correct baseURL and
-// automatically includes the Authorization header via the request interceptor.
-// We no longer need a separate API_BASE constant.
+const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000/api/v1'
 
-function wsPath(path = '') {
-  const ws = useWorkspaceStore()
-  return `/workspaces/${ws.wsId}${path}`
-}
+function wsId()         { return useWorkspaceStore().wsId }
+function wsPath(p = '') { return `/workspaces/${wsId()}${p}` }
 
 export default {
   async getSummary(params = {}) {
-    if (USE_MOCK) return mockGetReportSummary(params)
+    if (USE_MOCK) return mockGetReportSummary({ ...params, wsId: wsId() })
     const res = await api.get(wsPath('/reports'), { params: { type: 'summary', ...params } })
     return res.data
   },
 
-  async exportCsv(params = {}, summaryData = null) {
-    const ws = useWorkspaceStore()
-    if (USE_MOCK) {
-      _mockExportCsv(params, summaryData)
-      return
-    }
-    // Fetch the CSV via api (which includes auth header) and trigger download
-    try {
-      const qs = new URLSearchParams({
-        type: 'full', format: 'csv',
-        from: params.from ?? '', to: params.to ?? '',
-      }).toString()
-      const response = await api.get(wsPath(`/reports?${qs}`), {
-        responseType: 'blob',
-      })
-      const blob = response instanceof Blob ? response : response.data
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `ifas-report-${params.from ?? 'all'}-${params.to ?? 'all'}.csv`
-      a.click()
-      URL.revokeObjectURL(url)
-    } catch (error) {
-      console.error('CSV export failed:', error)
-      throw error
-    }
+  exportCsv(params = {}, summaryData = null) {
+    if (USE_MOCK) { _mockExportCsv(params, summaryData); return }
+    const qs = new URLSearchParams({
+      type: 'full', format: 'csv',
+      from: params.from ?? '', to: params.to ?? '',
+    }).toString()
+    window.open(`${API_BASE}/workspaces/${wsId()}/reports?${qs}`, '_blank', 'noopener')
   },
 }
 
