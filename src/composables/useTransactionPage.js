@@ -7,7 +7,8 @@
  */
 import { ref, reactive, watch, onMounted, computed } from 'vue'
 import transactionService from '@/services/transactionService'
-import authService        from '@/services/authService'
+import accountService     from '@/services/accountService'
+import categoryService    from '@/services/categoryService'
 
 export function useTransactionPage(lockedType = null) {
   // ── Reference data ──────────────────────────────────────
@@ -17,8 +18,8 @@ export function useTransactionPage(lockedType = null) {
   async function loadReference() {
     try {
       const [cats, accs] = await Promise.all([
-        authService.getCategories(),
-        authService.getAccounts(),
+        categoryService.list(),
+        accountService.list(),
       ])
       categories.value = cats.filter((c) => !lockedType || c.type === lockedType)
       accounts.value   = accs

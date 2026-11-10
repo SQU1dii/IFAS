@@ -12,7 +12,8 @@
  */
 import { ref, reactive, watch, onMounted, computed } from 'vue'
 import transactionService from '@/services/transactionService'
-import authService        from '@/services/authService'
+import accountService     from '@/services/accountService'
+import categoryService    from '@/services/categoryService'
 
 import PageHeader           from '@/components/common/PageHeader.vue'
 import BaseButton           from '@/components/common/BaseButton.vue'
@@ -36,8 +37,8 @@ const departments = ref([])
 async function loadReference() {
   try {
     const [cats, accs] = await Promise.all([
-      authService.getCategories(),
-      authService.getAccounts(),
+      categoryService.list(),
+      accountService.list(),
     ])
     categories.value = cats
     accounts.value   = accs

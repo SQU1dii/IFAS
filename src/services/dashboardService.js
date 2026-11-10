@@ -11,8 +11,6 @@ import {
   mockGetDashboard,
   mockGetBudgets,
   mockGetSavingsGoals,
-  mockGetCategories,
-  mockGetAccounts,
   mockGetNotifications,
   mockMarkNotificationRead,
   mockMarkAllNotificationsRead,
@@ -47,17 +45,6 @@ export default {
     return res.data
   },
 
-  async getCategories() {
-    if (USE_MOCK) return mockGetCategories(wsId())
-    const res = await api.get(wsPath('/categories'))
-    return res.data
-  },
-
-  async getAccounts() {
-    if (USE_MOCK) return mockGetAccounts(wsId())
-    const res = await api.get(wsPath('/accounts'))
-    return res.data
-  },
 
   async getNotifications() {
     if (USE_MOCK) return mockGetNotifications()

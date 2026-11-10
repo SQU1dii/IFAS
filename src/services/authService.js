@@ -1,6 +1,11 @@
 /**
  * Authentication service.
- * Paths: /auth/... (NOT workspace-scoped — auth is global).
+ * Paths: /auth/... (global — NOT workspace-scoped).
+ *
+ * Note: getCategories() and getAccounts() have been removed from here.
+ * They are workspace-scoped and belong in categoryService and accountService.
+ * Any component that needs categories or accounts for dropdowns should
+ * import those services directly.
  */
 import api from './api'
 import {
@@ -10,8 +15,6 @@ import {
   mockResetPassword,
   mockRefreshToken,
   mockLogout,
-  mockGetCategories,
-  mockGetAccounts,
 } from './mock/mockService'
 import { MOCK_USER } from './mock/mockData'
 
@@ -68,29 +71,6 @@ export default {
   async changePassword(payload) {
     if (USE_MOCK) return { message: 'Password updated.' }
     const res = await api.patch('/auth/me/password', payload)
-    return res.data
-  },
-
-  // Reference data — workspace-scoped (categories and accounts for form dropdowns).
-  async getCategories() {
-    if (USE_MOCK) {
-      const { useWorkspaceStore } = await import('@/stores/workspace')
-      return mockGetCategories(useWorkspaceStore().wsId ?? 'ws-personal')
-    }
-    const { useWorkspaceStore } = await import('@/stores/workspace')
-    const ws = useWorkspaceStore()
-    const res = await api.get(`/workspaces/${ws.wsId}/categories`)
-    return res.data
-  },
-
-  async getAccounts() {
-    if (USE_MOCK) {
-      const { useWorkspaceStore } = await import('@/stores/workspace')
-      return mockGetAccounts(useWorkspaceStore().wsId ?? 'ws-personal')
-    }
-    const { useWorkspaceStore } = await import('@/stores/workspace')
-    const ws = useWorkspaceStore()
-    const res = await api.get(`/workspaces/${ws.wsId}/accounts`)
     return res.data
   },
 }
