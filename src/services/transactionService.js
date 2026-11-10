@@ -28,6 +28,8 @@ function wsPath(path = '') {
   return `/workspaces/${ws.wsId}${path}`
 }
 
+function wsId() { return useWorkspaceStore().wsId }
+
 export default {
   async list(params = {}) {
     if (USE_MOCK) return mockGetTransactions(params)

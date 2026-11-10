@@ -1,34 +1,51 @@
 <script setup>
 /**
- * RegisterView — new account creation page.
+ * RegisterView — new account creation.
  *
- * - All fields validated client-side with clear inline messages.
- * - Password confirmation checked locally so the API isn't called with
- *   mismatched passwords; the backend still validates on its end.
- * - Password is never stored or logged beyond the reactive form scope.
+ * Step 1: Personal details (name, email, password, confirm password)
+ * Step 2: Workspace type selection (Personal, Business, Organization)
+ *         with name and currency for the first workspace.
+ *
+ * On submit:
+ *   1. POST /auth/register   → receives accessToken + user
+ *   2. POST /workspaces      → creates the first workspace (empty — no demo data)
+ *   3. Activate workspace in store → route to dashboard
+ *
+ * A new workspace created here starts completely empty.
+ * Password is never stored beyond this form scope.
  */
 import { ref, reactive, computed } from 'vue'
-import { useRouter } from 'vue-router'
-import { useAuthStore } from '@/stores/auth'
-import { runRules, required, isEmail, minLength, matches } from '@/utils/validation'
+import { useRouter }         from 'vue-router'
+import { useAuthStore }      from '@/stores/auth'
+import { useWorkspaceStore } from '@/stores/workspace'
+import { runRules, required, isEmail, minLength } from '@/utils/validation'
 import BaseButton from '@/components/common/BaseButton.vue'
 import BaseInput  from '@/components/common/BaseInput.vue'
 import BaseAlert  from '@/components/common/BaseAlert.vue'
 
 const router = useRouter()
 const auth   = useAuthStore()
+const ws     = useWorkspaceStore()
 
-const form = reactive({ name: '', email: '', password: '', confirmPassword: '' })
+// ── Two-step flow ──────────────────────────────────────────
+// step 1 = personal details, step 2 = workspace setup
+const step = ref(1)
+
+// ── Step 1 — Personal details ──────────────────────────────
+const form = reactive({
+  name:            '',
+  email:           '',
+  password:        '',
+  confirmPassword: '',
+})
 const touched = reactive({ name: false, email: false, password: false, confirmPassword: false })
-const loading  = ref(false)
-const apiError = ref('')
-const showPw   = ref(false)
-const showCpw  = ref(false)
+const showPw  = ref(false)
+const showCpw = ref(false)
 
-const errors = computed(() => ({
+const step1Errors = computed(() => ({
   name: runRules(form.name, [
-    [required,   'Full name is required'],
-    [minLength,  'Name must be at least 2 characters', 2],
+    [required, 'Full name is required'],
+    [minLength, 'Name must be at least 2 characters', 2],
   ]),
   email: runRules(form.email, [
     [required, 'Email is required'],
@@ -45,50 +62,115 @@ const errors = computed(() => ({
   })(),
 }))
 
-const isFormValid = computed(() =>
-  !errors.value.name &&
-  !errors.value.email &&
-  !errors.value.password &&
-  !errors.value.confirmPassword
-)
+const step1Valid = computed(() => Object.values(step1Errors.value).every((e) => !e))
 
-function touchAll() {
-  Object.keys(touched).forEach((k) => (touched[k] = true))
+function touchStep1() { Object.keys(touched).forEach((k) => (touched[k] = true)) }
+
+function goToStep2() {
+  touchStep1()
+  if (!step1Valid.value) return
+  step.value = 2
 }
 
+// Password strength 0–4
+const pwStrength = computed(() => {
+  const p = form.password; if (!p) return 0
+  let s = 0
+  if (p.length >= 8)           s++
+  if (/[A-Z]/.test(p))        s++
+  if (/[0-9]/.test(p))        s++
+  if (/[^A-Za-z0-9]/.test(p)) s++
+  return s
+})
+const pwStrengthLabel = computed(() => ['', 'Weak', 'Fair', 'Good', 'Strong'][pwStrength.value])
+const pwStrengthColor = computed(() => ['', 'bg-rose-400', 'bg-amber-400', 'bg-blue-400', 'bg-emerald-500'][pwStrength.value])
+
+// ── Step 2 — Workspace setup ───────────────────────────────
+const wsForm = reactive({
+  type:     'PERSONAL',
+  name:     '',
+  currency: 'KES',
+})
+const wsTouched = reactive({ name: false })
+const wsNameError = computed(() =>
+  wsTouched.name ? runRules(wsForm.name, [[required, 'Workspace name is required'], [minLength, 'Name must be at least 3 characters', 3]]) : ''
+)
+
+const WORKSPACE_TYPES = [
+  {
+    value: 'PERSONAL',
+    label: 'Personal',
+    icon: '👤',
+    description: 'Track your own income, expenses, savings goals, and budgets.',
+    namePlaceholder: 'e.g. My Finances',
+  },
+  {
+    value: 'BUSINESS',
+    label: 'Business',
+    icon: '💼',
+    description: 'Manage business cash flow, net profit, team access, and budgets.',
+    namePlaceholder: 'e.g. Wanjiku Ventures Ltd',
+  },
+  {
+    value: 'ORGANIZATION',
+    label: 'Organization',
+    icon: '🏢',
+    description: 'Multi-department budgets, roles, and spending oversight for NGOs or institutions.',
+    namePlaceholder: 'e.g. Nairobi Youth Foundation',
+  },
+]
+
+const selectedType = computed(() => WORKSPACE_TYPES.find((t) => t.value === wsForm.type))
+
+const CURRENCY_OPTIONS = [
+  { value: 'KES', label: 'KES — Kenyan Shilling' },
+  { value: 'USD', label: 'USD — US Dollar'        },
+  { value: 'UGX', label: 'UGX — Ugandan Shilling' },
+  { value: 'TZS', label: 'TZS — Tanzanian Shilling' },
+  { value: 'EUR', label: 'EUR — Euro'             },
+  { value: 'GBP', label: 'GBP — British Pound'   },
+]
+
+// ── Submit ─────────────────────────────────────────────────
+const loading  = ref(false)
+const apiError = ref('')
+
 async function handleSubmit() {
-  touchAll()
-  if (!isFormValid.value) return
+  wsTouched.name = true
+  if (wsNameError.value) return
 
   loading.value  = true
   apiError.value = ''
 
   try {
-    await auth.register({ name: form.name, email: form.email, password: form.password })
+    // Step 1: Register the user
+    await auth.register({
+      name:     form.name.trim(),
+      email:    form.email.trim(),
+      password: form.password,
+    })
+
+    // Step 2: Create the first workspace (starts completely empty — no demo data)
+    const newWs = await ws.create({
+      name:     wsForm.name.trim(),
+      type:     wsForm.type,
+      currency: wsForm.currency,
+    })
+
+    // Step 3: Activate the new workspace and go to dashboard
+    await ws.activate(newWs.id)
     router.push({ name: 'dashboard' })
   } catch (err) {
     apiError.value = err?.message ?? 'Registration failed. Please try again.'
+    // If registration succeeded but workspace creation failed, roll back to step 1
+    // so the user can try again (backend will reject duplicate email).
+    if (auth.isLoggedIn) {
+      apiError.value = 'Account created but workspace setup failed. Please try again or sign in.'
+    }
   } finally {
     loading.value = false
   }
 }
-
-// Password-strength indicator: 0–4.
-const pwStrength = computed(() => {
-  const p = form.password
-  if (!p) return 0
-  let score = 0
-  if (p.length >= 8)              score++
-  if (/[A-Z]/.test(p))           score++
-  if (/[0-9]/.test(p))           score++
-  if (/[^A-Za-z0-9]/.test(p))   score++
-  return score
-})
-
-const pwStrengthLabel = computed(() => ['', 'Weak', 'Fair', 'Good', 'Strong'][pwStrength.value])
-const pwStrengthColor = computed(() => {
-  return ['', 'bg-rose-400', 'bg-amber-400', 'bg-blue-400', 'bg-emerald-500'][pwStrength.value]
-})
 </script>
 
 <template>
@@ -107,142 +189,263 @@ const pwStrengthColor = computed(() => {
       <span class="text-xl font-bold text-navy-800 tracking-tight">IFAS</span>
     </RouterLink>
 
-    <div class="w-full max-w-sm">
-      <div class="card-pad animate-slide-up">
+    <div class="w-full max-w-md">
 
-        <div class="mb-6">
-          <h1 class="text-2xl font-bold text-navy-800">Create your account</h1>
-          <p class="mt-1 text-sm text-slate-500">Start tracking your finances in minutes</p>
-        </div>
+      <!-- Step indicators -->
+      <div class="flex items-center gap-2 mb-6 justify-center" aria-label="Registration steps">
+        <div
+          v-for="n in 2" :key="n"
+          :class="[
+            'h-1.5 rounded-full transition-all duration-300',
+            n === step ? 'w-10 bg-emerald-500' : n < step ? 'w-5 bg-emerald-300' : 'w-5 bg-slate-200',
+          ]"
+        />
+      </div>
+
+      <div class="card-pad animate-slide-up">
 
         <BaseAlert v-if="apiError" variant="error" class="mb-4" dismissible @dismiss="apiError = ''">
           {{ apiError }}
         </BaseAlert>
 
-        <form novalidate class="space-y-4" @submit.prevent="handleSubmit">
+        <!-- ══════════════════════════════════════════════ -->
+        <!--  STEP 1 — Personal details                     -->
+        <!-- ══════════════════════════════════════════════ -->
+        <template v-if="step === 1">
+          <div class="mb-6">
+            <h1 class="text-2xl font-bold text-navy-800">Create your account</h1>
+            <p class="mt-1 text-sm text-slate-500">Start tracking your finances in minutes</p>
+          </div>
 
-          <BaseInput
-            v-model="form.name"
-            label="Full name"
-            type="text"
-            placeholder="e.g. Amara Wanjiku"
-            autocomplete="name"
-            required
-            :error="touched.name ? errors.name : ''"
-            @blur="touched.name = true"
-          />
+          <form novalidate class="space-y-4" @submit.prevent="goToStep2">
 
-          <BaseInput
-            v-model="form.email"
-            label="Email address"
-            type="email"
-            placeholder="you@example.co.ke"
-            autocomplete="email"
-            required
-            :error="touched.email ? errors.email : ''"
-            @blur="touched.email = true"
-          />
+            <!-- Full name -->
+            <BaseInput
+              v-model="form.name"
+              label="Full name"
+              type="text"
+              placeholder="e.g. Amara Wanjiku"
+              autocomplete="name"
+              required
+              :error="touched.name ? step1Errors.name : ''"
+              @blur="touched.name = true"
+            />
 
-          <!-- Password with strength meter -->
-          <div class="field">
-            <label for="reg-password" class="field-label">
-              Password <span class="text-rose-500 ml-0.5" aria-hidden="true">*</span>
-            </label>
-            <div class="relative">
-              <input
-                id="reg-password"
-                v-model="form.password"
-                :type="showPw ? 'text' : 'password'"
-                placeholder="Min. 8 characters"
-                autocomplete="new-password"
-                class="input pr-11"
-                :class="touched.password && errors.password ? 'input-error' : ''"
-                :aria-invalid="!!(touched.password && errors.password)"
-                @blur="touched.password = true"
-              />
-              <button
-                type="button"
-                :aria-label="showPw ? 'Hide password' : 'Show password'"
-                class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/60 rounded"
-                @click="showPw = !showPw"
-              >
-                <svg class="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
-                  <path v-if="!showPw" stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                  <path v-else stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" />
-                </svg>
-              </button>
-            </div>
+            <!-- Email -->
+            <BaseInput
+              v-model="form.email"
+              label="Email address"
+              type="email"
+              placeholder="you@example.co.ke"
+              autocomplete="email"
+              required
+              :error="touched.email ? step1Errors.email : ''"
+              @blur="touched.email = true"
+            />
 
-            <!-- Password strength bar -->
-            <div v-if="form.password" class="mt-2 space-y-1">
-              <div class="flex gap-1">
-                <div
-                  v-for="i in 4" :key="i"
-                  :class="['h-1 flex-1 rounded-full transition-all duration-300', i <= pwStrength ? pwStrengthColor : 'bg-slate-200']"
+            <!-- Password + strength meter -->
+            <div class="field">
+              <label for="reg-password" class="field-label">
+                Password <span class="text-rose-500 ml-0.5" aria-hidden="true">*</span>
+              </label>
+              <div class="relative">
+                <input
+                  id="reg-password"
+                  v-model="form.password"
+                  :type="showPw ? 'text' : 'password'"
+                  placeholder="Min. 8 characters"
+                  autocomplete="new-password"
+                  class="input pr-11"
+                  :class="touched.password && step1Errors.password ? 'input-error' : ''"
+                  :aria-invalid="!!(touched.password && step1Errors.password)"
+                  @blur="touched.password = true"
                 />
+                <button
+                  type="button"
+                  :aria-label="showPw ? 'Hide password' : 'Show password'"
+                  class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/60 rounded"
+                  @click="showPw = !showPw"
+                >
+                  <svg class="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+                    <path v-if="!showPw" stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path v-else stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" />
+                  </svg>
+                </button>
               </div>
-              <p class="text-xs" :class="pwStrength >= 3 ? 'text-emerald-600' : pwStrength === 2 ? 'text-amber-600' : 'text-rose-500'">
-                {{ pwStrengthLabel }}
+              <!-- Strength bar -->
+              <div v-if="form.password" class="mt-2 space-y-1">
+                <div class="flex gap-1">
+                  <div
+                    v-for="i in 4" :key="i"
+                    :class="['h-1 flex-1 rounded-full transition-all duration-300', i <= pwStrength ? pwStrengthColor : 'bg-slate-200']"
+                  />
+                </div>
+                <p class="text-xs" :class="pwStrength >= 3 ? 'text-emerald-600' : pwStrength === 2 ? 'text-amber-600' : 'text-rose-500'">
+                  {{ pwStrengthLabel }}
+                </p>
+              </div>
+              <p v-if="touched.password && step1Errors.password" class="field-error mt-1" role="alert">
+                {{ step1Errors.password }}
               </p>
             </div>
 
-            <p v-if="touched.password && errors.password" class="field-error mt-1" role="alert">
-              {{ errors.password }}
-            </p>
-          </div>
-
-          <!-- Confirm password -->
-          <div class="field">
-            <label for="reg-confirm" class="field-label">
-              Confirm password <span class="text-rose-500 ml-0.5" aria-hidden="true">*</span>
-            </label>
-            <div class="relative">
-              <input
-                id="reg-confirm"
-                v-model="form.confirmPassword"
-                :type="showCpw ? 'text' : 'password'"
-                placeholder="Repeat your password"
-                autocomplete="new-password"
-                class="input pr-11"
-                :class="touched.confirmPassword && errors.confirmPassword ? 'input-error' : ''"
-                :aria-invalid="!!(touched.confirmPassword && errors.confirmPassword)"
-                @blur="touched.confirmPassword = true"
-              />
-              <button
-                type="button"
-                :aria-label="showCpw ? 'Hide password' : 'Show password'"
-                class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/60 rounded"
-                @click="showCpw = !showCpw"
-              >
-                <svg class="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
-                  <path v-if="!showCpw" stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                  <path v-else stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" />
-                </svg>
-              </button>
+            <!-- Confirm password -->
+            <div class="field">
+              <label for="reg-confirm" class="field-label">
+                Confirm password <span class="text-rose-500 ml-0.5" aria-hidden="true">*</span>
+              </label>
+              <div class="relative">
+                <input
+                  id="reg-confirm"
+                  v-model="form.confirmPassword"
+                  :type="showCpw ? 'text' : 'password'"
+                  placeholder="Repeat your password"
+                  autocomplete="new-password"
+                  class="input pr-11"
+                  :class="touched.confirmPassword && step1Errors.confirmPassword ? 'input-error' : ''"
+                  :aria-invalid="!!(touched.confirmPassword && step1Errors.confirmPassword)"
+                  @blur="touched.confirmPassword = true"
+                />
+                <button
+                  type="button"
+                  :aria-label="showCpw ? 'Hide password' : 'Show password'"
+                  class="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/60 rounded"
+                  @click="showCpw = !showCpw"
+                >
+                  <svg class="h-[18px] w-[18px]" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+                    <path v-if="!showCpw" stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    <path v-else stroke-linecap="round" stroke-linejoin="round" d="M3.98 8.223A10.477 10.477 0 001.934 12C3.226 16.338 7.244 19.5 12 19.5c.993 0 1.953-.138 2.863-.395M6.228 6.228A10.45 10.45 0 0112 4.5c4.756 0 8.773 3.162 10.065 7.498a10.523 10.523 0 01-4.293 5.774M6.228 6.228L3 3m3.228 3.228l3.65 3.65m7.894 7.894L21 21m-3.228-3.228l-3.65-3.65m0 0a3 3 0 10-4.243-4.243m4.242 4.242L9.88 9.88" />
+                  </svg>
+                </button>
+              </div>
+              <p v-if="touched.confirmPassword && step1Errors.confirmPassword" class="field-error" role="alert">
+                {{ step1Errors.confirmPassword }}
+              </p>
             </div>
-            <p v-if="touched.confirmPassword && errors.confirmPassword" class="field-error" role="alert">
-              {{ errors.confirmPassword }}
+
+            <BaseButton type="submit" variant="primary" size="lg" class="w-full mt-2">
+              Continue
+              <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 4.5L21 12m0 0l-7.5 7.5M21 12H3" />
+              </svg>
+            </BaseButton>
+
+            <p class="text-xs text-slate-400 text-center leading-relaxed">
+              By creating an account you agree to our
+              <a href="#" class="text-emerald-600 hover:underline">Terms of Service</a>
+              and
+              <a href="#" class="text-emerald-600 hover:underline">Privacy Policy</a>.
+            </p>
+          </form>
+        </template>
+
+        <!-- ══════════════════════════════════════════════ -->
+        <!--  STEP 2 — Workspace setup                      -->
+        <!-- ══════════════════════════════════════════════ -->
+        <template v-else>
+          <div class="mb-6">
+            <h1 class="text-2xl font-bold text-navy-800">Set up your workspace</h1>
+            <p class="mt-1 text-sm text-slate-500">
+              Choose the type that fits what you want to track.
+              You can add more workspaces later.
             </p>
           </div>
 
-          <BaseButton
-            type="submit"
-            variant="primary"
-            size="lg"
-            :loading="loading"
-            :disabled="loading"
-            class="w-full mt-2"
-          >
-            {{ loading ? 'Creating account…' : 'Create account' }}
-          </BaseButton>
+          <div class="space-y-5">
 
-          <p class="text-xs text-slate-400 text-center leading-relaxed">
-            By creating an account you agree to our
-            <a href="#" class="text-emerald-600 hover:underline">Terms of Service</a>
-            and
-            <a href="#" class="text-emerald-600 hover:underline">Privacy Policy</a>.
-          </p>
-        </form>
+            <!-- Workspace type cards -->
+            <fieldset>
+              <legend class="field-label mb-2">Workspace type</legend>
+              <div class="space-y-2.5" role="radiogroup" aria-label="Workspace type">
+                <label
+                  v-for="t in WORKSPACE_TYPES"
+                  :key="t.value"
+                  :class="[
+                    'flex items-start gap-3.5 p-4 rounded-xl border-2 cursor-pointer transition',
+                    wsForm.type === t.value
+                      ? 'border-emerald-500 bg-emerald-50/50'
+                      : 'border-slate-200 bg-white hover:border-slate-300',
+                  ]"
+                >
+                  <input
+                    v-model="wsForm.type"
+                    type="radio"
+                    :value="t.value"
+                    class="sr-only"
+                    :aria-label="t.label"
+                  />
+                  <!-- Check indicator -->
+                  <span
+                    :class="[
+                      'shrink-0 mt-0.5 h-5 w-5 rounded-full border-2 flex items-center justify-center transition',
+                      wsForm.type === t.value ? 'border-emerald-500 bg-emerald-500' : 'border-slate-300',
+                    ]"
+                    aria-hidden="true"
+                  >
+                    <svg v-if="wsForm.type === t.value" class="h-3 w-3 text-white" fill="currentColor" viewBox="0 0 12 12">
+                      <circle cx="6" cy="6" r="3" />
+                    </svg>
+                  </span>
+                  <!-- Type info -->
+                  <div class="flex-1 min-w-0">
+                    <div class="flex items-center gap-2">
+                      <span class="text-base" aria-hidden="true">{{ t.icon }}</span>
+                      <span class="text-sm font-semibold text-navy-800">{{ t.label }}</span>
+                    </div>
+                    <p class="text-xs text-slate-500 mt-0.5 leading-relaxed">{{ t.description }}</p>
+                  </div>
+                </label>
+              </div>
+            </fieldset>
+
+            <!-- Workspace name -->
+            <BaseInput
+              v-model="wsForm.name"
+              label="Workspace name"
+              :placeholder="selectedType?.namePlaceholder ?? 'Enter a name'"
+              required
+              :error="wsNameError"
+              @blur="wsTouched.name = true"
+            />
+
+            <!-- Currency -->
+            <div class="field">
+              <label class="field-label" for="ws-currency">Currency</label>
+              <select id="ws-currency" v-model="wsForm.currency" class="input cursor-pointer" aria-label="Workspace currency">
+                <option v-for="c in CURRENCY_OPTIONS" :key="c.value" :value="c.value">{{ c.label }}</option>
+              </select>
+            </div>
+
+            <!-- Info note: new workspace is empty -->
+            <div class="flex items-start gap-2.5 bg-blue-50 border border-blue-200 rounded-xl px-3.5 py-3 text-xs text-blue-700">
+              <svg class="h-4 w-4 text-blue-400 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 011.063.852l-.708 2.836a.75.75 0 001.063.853l.041-.021M21 12a9 9 0 11-18 0 9 9 0 0118 0zm-9-3.75h.008v.008H12V8.25z" />
+              </svg>
+              <p>Your workspace starts empty — add your accounts, categories, and transactions to get started.</p>
+            </div>
+
+            <!-- Actions -->
+            <div class="flex gap-3 pt-1">
+              <BaseButton variant="secondary" class="flex-1" @click="step = 1">
+                <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+                </svg>
+                Back
+              </BaseButton>
+              <BaseButton
+                variant="primary"
+                size="lg"
+                :loading="loading"
+                :disabled="loading"
+                class="flex-[2]"
+                @click="handleSubmit"
+              >
+                {{ loading ? 'Creating account…' : 'Create account' }}
+              </BaseButton>
+            </div>
+          </div>
+        </template>
+
       </div>
 
       <p class="mt-5 text-center text-sm text-slate-500">

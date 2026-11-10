@@ -1251,19 +1251,18 @@ export async function mockCreateWorkspace(payload) {
     type: payload.type,
     currency: payload.currency ?? 'KES',
     created_at: new Date().toISOString().slice(0, 10),
-    my_role: payload.type === 'PERSONAL' ? 'PERSONAL Owner' : payload.type === 'BUSINESS' ? 'BUSINESS Owner' : 'ORGANIZATION Admin',
-    owner_id: _currentUserId,
+    my_role: 'owner',
     my_permissions: [
-      'workspace.manage', 'members.manage',
-      'accounts.manage',
-      'transactions.view', 'transactions.create', 'transactions.edit', 'transactions.import',
-      'budgets.manage', 'goals.manage',
-      'dashboard.view', 'reports.generate', 'analytics.view',
-      'alerts.review', 'assistant.use',
-      ...(payload.type !== 'PERSONAL' ? ['departments.manage'] : []),
+      'transactions.read', 'transactions.write', 'transactions.void',
+      'budgets.read', 'budgets.write',
+      'reports.read',
+      'settings.write',
+      ...(payload.type !== 'PERSONAL' ? ['members.read', 'members.write', 'departments.read', 'departments.write'] : []),
     ],
   }
   _workspaces.push(ws)
+  // Ensure an empty data slice exists for this workspace
+  getSlice(ws.id)
   return ws
 }
 
