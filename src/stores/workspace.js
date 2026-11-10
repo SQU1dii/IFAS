@@ -51,7 +51,12 @@ export const useWorkspaceStore = defineStore('workspace', () => {
   const isOrganization = computed(() => wsType.value === 'ORGANIZATION')
   const isOwnerOrAdmin = computed(() => ['owner', 'admin'].includes(role.value))
 
-  function can(permission) { return perms.value.has(permission) }
+  function can(permission) {
+    // Owners and admins always have full access — safety net so
+    // permission-code mismatches never lock out power users.
+    if (['owner', 'admin'].includes(role.value)) return true
+    return perms.value.has(permission)
+  }
 
   // ── Actions ───────────────────────────────────────────────
 
