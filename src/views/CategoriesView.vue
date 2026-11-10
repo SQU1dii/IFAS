@@ -2,7 +2,9 @@
 /**
  * CategoriesView — manage income and expense categories.
  * Create, rename, and delete categories. Grouped by type.
- * Following the same CRUD pattern as AccountsView.
+ *
+ * Backend contract: CATEGORY_TYPES = ['INCOME', 'EXPENSE'] (uppercase).
+ * The form sends uppercase type values to match the backend validator.
  */
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useWorkspaceStore } from '@/stores/workspace'
@@ -26,8 +28,9 @@ const allCats      = ref([])
 const loading      = ref(false)
 const fetchError   = ref('')
 
-const incomeCats  = computed(() => allCats.value.filter((c) => c.type === 'income'))
-const expenseCats = computed(() => allCats.value.filter((c) => c.type === 'expense'))
+// Backend returns type as uppercase ('INCOME' / 'EXPENSE') — normalise for display
+const incomeCats  = computed(() => allCats.value.filter((c) => (c.type || '').toUpperCase() === 'INCOME'))
+const expenseCats = computed(() => allCats.value.filter((c) => (c.type || '').toUpperCase() === 'EXPENSE'))
 
 async function load() {
   loading.value = true; fetchError.value = ''
@@ -43,13 +46,15 @@ const editTarget   = ref(null)
 const formLoading  = ref(false)
 const formApiError = ref('')
 
-const blank = () => ({ name: '', type: 'expense' })
+// type is uppercase to match backend CATEGORY_TYPES
+const blank = () => ({ name: '', type: 'EXPENSE' })
 const form    = reactive(blank())
 const touched = reactive({})
 
+// Backend accepts 'INCOME' or 'EXPENSE' (uppercase)
 const typeOptions = [
-  { value: 'income',  label: 'Income'  },
-  { value: 'expense', label: 'Expense' },
+  { value: 'INCOME',  label: 'Income'  },
+  { value: 'EXPENSE', label: 'Expense' },
 ]
 
 const errors = computed(() => ({
@@ -59,7 +64,7 @@ const errors = computed(() => ({
 const fieldErr = (f) => touched[f] ? (errors.value[f] || '') : ''
 const isValid = computed(() => !errors.value.name && !errors.value.type)
 
-function openAdd(type = 'expense') {
+function openAdd(type = 'EXPENSE') {
   editTarget.value = null
   Object.assign(form, { name: '', type })
   Object.keys(touched).forEach((k) => delete touched[k])
@@ -67,7 +72,8 @@ function openAdd(type = 'expense') {
 }
 function openEdit(cat) {
   editTarget.value = cat
-  Object.assign(form, { name: cat.name, type: cat.type })
+  // Ensure type is uppercase for the form
+  Object.assign(form, { name: cat.name, type: (cat.type || 'EXPENSE').toUpperCase() })
   Object.keys(touched).forEach((k) => delete touched[k])
   formApiError.value = ''; modalOpen.value = true
 }
@@ -109,7 +115,7 @@ async function handleDelete() {
   finally { deleteLoading.value = false }
 }
 
-const typeBadge = { income: 'green', expense: 'red' }
+const typeBadge = { INCOME: 'green', EXPENSE: 'red', income: 'green', expense: 'red' }
 </script>
 
 <template>
@@ -117,7 +123,7 @@ const typeBadge = { income: 'green', expense: 'red' }
 
     <PageHeader title="Categories" subtitle="Manage your income and expense categories">
       <template #actions>
-        <BaseButton variant="primary" size="sm" @click="openAdd('expense')">
+        <BaseButton variant="primary" size="sm" @click="openAdd('EXPENSE')">
           <svg class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true">
             <path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
           </svg>
@@ -140,7 +146,7 @@ const typeBadge = { income: 'green', expense: 'red' }
               <h2 class="section-title">Income Categories</h2>
               <BaseBadge variant="green" size="sm">{{ incomeCats.length }}</BaseBadge>
             </div>
-            <BaseButton variant="ghost" size="sm" @click="openAdd('income')">+ Add</BaseButton>
+            <BaseButton variant="ghost" size="sm" @click="openAdd('INCOME')">+ Add</BaseButton>
           </div>
           <EmptyState v-if="!incomeCats.length" title="No income categories" message="Add categories to classify your income sources." icon="inbox" />
           <ul v-else class="divide-y divide-slate-100" role="list">
@@ -170,7 +176,7 @@ const typeBadge = { income: 'green', expense: 'red' }
               <h2 class="section-title">Expense Categories</h2>
               <BaseBadge variant="red" size="sm">{{ expenseCats.length }}</BaseBadge>
             </div>
-            <BaseButton variant="ghost" size="sm" @click="openAdd('expense')">+ Add</BaseButton>
+            <BaseButton variant="ghost" size="sm" @click="openAdd('EXPENSE')">+ Add</BaseButton>
           </div>
           <EmptyState v-if="!expenseCats.length" title="No expense categories" message="Add categories to classify your spending." icon="inbox" />
           <ul v-else class="divide-y divide-slate-100" role="list">

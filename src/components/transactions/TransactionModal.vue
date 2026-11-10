@@ -63,7 +63,10 @@ const isTransfer = computed(() => form.type === 'transfer')
 
 const categoryOpts = computed(() =>
   props.categories
-    .filter((c) => form.type === 'income' ? c.type === 'income' : c.type === 'expense')
+    .filter((c) => {
+      const catType = (c.type || '').toUpperCase()
+      return form.type === 'income' ? catType === 'INCOME' : catType === 'EXPENSE'
+    })
     .map((c) => ({ value: c.id, label: c.name }))
 )
 const accountOpts = computed(() =>
@@ -106,9 +109,10 @@ function handleSubmit() {
     description: form.description.trim(),
     amount:      parseFloat(form.amount),
     type:        form.type,
-    category_id:            form.type !== 'transfer' ? form.category_id || null : null,
-    account_id:             form.account_id,
-    destination_account_id: form.type === 'transfer' ? form.destination_account_id || null : null,
+    // Backend validators expect integer IDs (z.number().int().positive())
+    category_id:            form.type !== 'transfer' ? parseInt(form.category_id) || null : null,
+    account_id:             parseInt(form.account_id) || null,
+    destination_account_id: form.type === 'transfer' ? parseInt(form.destination_account_id) || null : null,
     notes:       form.notes.trim(),
   }
   emit('submit', payload)

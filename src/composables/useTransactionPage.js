@@ -21,7 +21,8 @@ export function useTransactionPage(lockedType = null) {
         categoryService.list(),
         accountService.list(),
       ])
-      categories.value = cats.filter((c) => !lockedType || c.type === lockedType)
+      // Filter categories by the locked type (case-insensitive — backend returns uppercase)
+      categories.value = cats.filter((c) => !lockedType || (c.type || '').toUpperCase() === lockedType.toUpperCase())
       accounts.value   = accs
     } catch { /* non-critical */ }
   }

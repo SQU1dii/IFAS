@@ -58,7 +58,7 @@ const formLoading   = ref(false)
 const formApiError  = ref('')
 const formFieldErrs = ref({})
 
-const blank = () => ({ name: '', type: 'checking', currency: 'KES', balance: '', institution: '' })
+const blank = () => ({ name: '', type: 'BANK', currency: 'KES', balance: '', institution: '' })
 const form    = reactive(blank())
 const touched = reactive({})
 
