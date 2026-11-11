@@ -11,10 +11,10 @@
  * In mock mode changes are applied to the local user object only.
  */
 import { ref, reactive, computed, onMounted } from 'vue'
-import { useRouter }             from 'vue-router'
+import { useRouter }         from 'vue-router'
 import { useAuthStore }      from '@/stores/auth'
 import { useWorkspaceStore } from '@/stores/workspace'
-import { useUiStore }         from '@/stores/ui'
+import { useUiStore }        from '@/stores/ui'
 import authService from '@/services/authService'
 
 import PageHeader  from '@/components/common/PageHeader.vue'
@@ -102,6 +102,34 @@ const canEditWorkspace = computed(() => ws.can('settings.write'))
     <!-- Save feedback -->
     <BaseAlert v-if="saveMsg"   variant="success" dismissible @dismiss="saveMsg = ''">{{ saveMsg }}</BaseAlert>
     <BaseAlert v-if="saveError" variant="error"   dismissible @dismiss="saveError = ''">{{ saveError }}</BaseAlert>
+
+    <!-- ── Profile summary ───────────────────────────────── -->
+    <BaseCard no-pad>
+      <div class="px-5 pt-4 pb-2 border-b border-slate-100 flex items-center justify-between">
+        <h2 class="section-title">Your Profile</h2>
+        <RouterLink to="/profile" class="text-xs font-medium text-emerald-600 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/60 rounded">
+          Edit profile →
+        </RouterLink>
+      </div>
+      <div class="px-5 py-4 flex items-center gap-4">
+        <span class="shrink-0 h-12 w-12 rounded-full bg-emerald-600 flex items-center justify-center text-white font-bold" aria-hidden="true">
+          {{ auth.initials }}
+        </span>
+        <div class="flex-1 min-w-0">
+          <p class="text-sm font-semibold text-navy-800 truncate">{{ auth.user?.name }}</p>
+          <p class="text-xs text-slate-500 truncate">{{ auth.user?.email }}</p>
+          <p v-if="auth.user?.phone" class="text-xs text-slate-400 mt-0.5">{{ auth.user.phone }}</p>
+        </div>
+        <RouterLink to="/profile" class="shrink-0">
+          <BaseButton variant="secondary" size="sm">
+            <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931z" />
+            </svg>
+            Edit
+          </BaseButton>
+        </RouterLink>
+      </div>
+    </BaseCard>
 
     <!-- ── Workspace info ────────────────────────────────── -->
     <BaseCard no-pad>

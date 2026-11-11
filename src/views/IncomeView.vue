@@ -20,7 +20,7 @@ import TransactionModal     from '@/components/transactions/TransactionModal.vue
 import DeleteConfirmModal   from '@/components/transactions/DeleteConfirmModal.vue'
 
 const {
-  categories, accounts, filters, page,
+  categories, accounts, departments, filters, page,
   transactions, meta, loading, fetchError, load,
   categorySummary, pageTotal,
   modalOpen, editTarget, modalLoading, modalApiError, modalFieldErrs,

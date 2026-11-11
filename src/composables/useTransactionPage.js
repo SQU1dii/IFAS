@@ -9,11 +9,16 @@ import { ref, reactive, watch, onMounted, computed } from 'vue'
 import transactionService from '@/services/transactionService'
 import accountService     from '@/services/accountService'
 import categoryService    from '@/services/categoryService'
+import workspaceService   from '@/services/workspaceService'
+import { useWorkspaceStore } from '@/stores/workspace'
 
 export function useTransactionPage(lockedType = null) {
+  const ws = useWorkspaceStore()
+
   // ── Reference data ──────────────────────────────────────
-  const categories = ref([])
-  const accounts   = ref([])
+  const categories  = ref([])
+  const accounts    = ref([])
+  const departments = ref([])
 
   async function loadReference() {
     try {
@@ -21,15 +26,18 @@ export function useTransactionPage(lockedType = null) {
         categoryService.list(),
         accountService.list(),
       ])
-      // Filter categories by the locked type (case-insensitive — backend returns uppercase)
-      categories.value = cats.filter((c) => !lockedType || (c.type || '').toUpperCase() === lockedType.toUpperCase())
-      accounts.value   = accs
+      categories.value  = cats.filter((c) => !lockedType || (c.type || '').toUpperCase() === lockedType.toUpperCase())
+      accounts.value    = accs
+      // Load departments for org workspaces only
+      if (ws.isOrganization) {
+        departments.value = await workspaceService.listDepartments(ws.wsId)
+      }
     } catch { /* non-critical */ }
   }
 
   // ── Filters ─────────────────────────────────────────────
   const filters = reactive({
-    search: '', category_id: '', account_id: '', from: '', to: '',
+    search: '', category_id: '', account_id: '', department_id: '', from: '', to: '',
   })
   const page = ref(1)
 
@@ -43,14 +51,15 @@ export function useTransactionPage(lockedType = null) {
     loading.value = true; fetchError.value = ''
     try {
       const res = await transactionService.list({
-        page:        page.value,
-        page_size:   15,
-        type:        lockedType || undefined,
-        search:      filters.search      || undefined,
-        category_id: filters.category_id || undefined,
-        account_id:  filters.account_id  || undefined,
-        from:        filters.from        || undefined,
-        to:          filters.to          || undefined,
+        page:          page.value,
+        page_size:     15,
+        type:          lockedType || undefined,
+        search:        filters.search      || undefined,
+        category_id:   filters.category_id || undefined,
+        account_id:    filters.account_id  || undefined,
+        department_id: filters.department_id || undefined,
+        from:          filters.from        || undefined,
+        to:            filters.to          || undefined,
       })
       transactions.value = res.data
       meta.value         = res.meta ?? {}
@@ -65,7 +74,7 @@ export function useTransactionPage(lockedType = null) {
     clearTimeout(searchTimer)
     searchTimer = setTimeout(() => { page.value = 1; load() }, 350)
   })
-  watch(() => [filters.category_id, filters.account_id, filters.from, filters.to],
+  watch(() => [filters.category_id, filters.account_id, filters.department_id, filters.from, filters.to],
     () => { page.value = 1; load() })
   watch(page, load)
 
@@ -138,7 +147,7 @@ export function useTransactionPage(lockedType = null) {
 
   return {
     // reference
-    categories, accounts,
+    categories, accounts, departments,
     // filters
     filters, page,
     // list
