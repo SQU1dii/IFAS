@@ -100,6 +100,7 @@ let _transactions  = [...MOCK_TRANSACTIONS]
 let _accounts      = [...MOCK_ACCOUNTS]
 let _budgets       = [...MOCK_BUDGETS]
 let _savings       = [...MOCK_SAVINGS_GOALS]
+let _categories    = [...MOCK_CATEGORIES]   // mutable so CRUD from CategoriesView syncs to all dropdowns
 let _contributions = MOCK_CONTRIBUTIONS.map((c) => ({ ...c }))
 
 // Track the current user so refresh doesn't overwrite with the default mock user.
@@ -431,9 +432,28 @@ export async function mockDeleteAccount(id, wsId = 'ws-personal') {
 
 export async function mockGetCategories(wsId = 'ws-personal') {
   await delay(150)
-  // Categories are reference data — return the global set for all workspaces.
-  // The real backend seeds default categories when a workspace is created.
-  return [...MOCK_CATEGORIES]
+  return [..._categories]
+}
+
+export async function mockCreateCategory(payload) {
+  await delay(200)
+  const cat = { id: nextId('cat'), name: payload.name, type: payload.type }
+  _categories.push(cat)
+  return cat
+}
+
+export async function mockUpdateCategory(id, payload) {
+  await delay(200)
+  const idx = _categories.findIndex((c) => c.id === id)
+  if (idx === -1) throw { message: 'Category not found.', status: 404 }
+  _categories[idx] = { ..._categories[idx], ...payload }
+  return _categories[idx]
+}
+
+export async function mockDeleteCategory(id) {
+  await delay(200)
+  _categories = _categories.filter((c) => c.id !== id)
+  return {}
 }
 
 // ── Notifications ────────────────────────────────────────────

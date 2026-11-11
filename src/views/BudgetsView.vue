@@ -20,7 +20,7 @@
  */
 import { ref, computed, onMounted, reactive } from 'vue'
 import budgetService   from '@/services/budgetService'
-import authService     from '@/services/authService'
+import categoryService from '@/services/categoryService'
 import { formatCurrency, formatPercent } from '@/utils/format'
 import { runRules, required, isPositiveNumber } from '@/utils/validation'
 
@@ -40,7 +40,7 @@ import DeleteConfirmModal from '@/components/transactions/DeleteConfirmModal.vue
 const categories = ref([])
 onMounted(async () => {
   try {
-    const all = await authService.getCategories()
+    const all = await categoryService.list()
     categories.value = all.filter((c) => c.type === 'expense')
   } catch { /* non-critical */ }
   load()

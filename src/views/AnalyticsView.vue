@@ -19,7 +19,7 @@
  */
 import { ref, computed, watch, onMounted, reactive } from 'vue'
 import analyticsService          from '@/services/analyticsService'
-import authService               from '@/services/authService'
+import categoryService           from '@/services/categoryService'
 import { formatCurrency, formatPercent } from '@/utils/format'
 import { resolvePreset, rangeToIso } from '@/utils/date'
 import { useUiStore }            from '@/stores/ui'
@@ -70,7 +70,7 @@ const categoryOptions = computed(() => [
 ])
 
 onMounted(async () => {
-  try { categories.value = await authService.getCategories() } catch { /* non-critical */ }
+  try { categories.value = await categoryService.list() } catch { /* non-critical */ }
   fetchAll()
 })
 
