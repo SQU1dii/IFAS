@@ -7,10 +7,8 @@
  * PATCH  /workspaces/:id/categories/:id      → update { name }
  * DELETE /workspaces/:id/categories/:id      → delete
  *
- * In mock mode, all functions delegate to mockService which shares a
- * single mutable _categories array across all views — so a category
- * created in CategoriesView immediately appears in transaction form
- * dropdowns, budget forms, and filter bars.
+ * Mock CRUD functions already exist in mockService.js
+ * (mockGetCategories, mockCreateCategory, mockUpdateCategory, mockDeleteCategory).
  */
 import api from './api'
 import { useWorkspaceStore } from '@/stores/workspace'
