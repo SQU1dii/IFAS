@@ -73,7 +73,6 @@ async function handleExtract() {
   try {
     const rawText = await extractTextFromPdf(file.value, password.value)
     parsed.value  = parseMpesaText(rawText)
-
     if (!parsed.value.transactions.length) {
       error.value = 'No transactions were found in this PDF. Make sure it is a valid M-Pesa statement and try again.'
       step.value  = 1
