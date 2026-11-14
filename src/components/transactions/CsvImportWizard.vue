@@ -38,11 +38,38 @@ function onFileChange(e) {
 function parseCsv(text) {
   const lines = text.trim().split(/\r?\n/)
   if (lines.length < 2) throw new Error('File must have a header row and at least one data row.')
-  const headers = lines[0].split(',').map((h) => h.trim().replace(/^"|"$/g, '').toLowerCase())
+
+  // Proper CSV field parser — handles quoted fields containing commas and quotes.
+  function parseRow(line) {
+    const fields = []
+    let current  = ''
+    let inQuotes = false
+    for (let i = 0; i < line.length; i++) {
+      const ch   = line[i]
+      const next = line[i + 1]
+      if (inQuotes) {
+        if (ch === '"' && next === '"') { current += '"'; i++ }  // escaped quote
+        else if (ch === '"')            { inQuotes = false }     // closing quote
+        else                            { current += ch }
+      } else {
+        if (ch === '"')   { inQuotes = true }
+        else if (ch === ',') { fields.push(current.trim()); current = '' }
+        else              { current += ch }
+      }
+    }
+    fields.push(current.trim())
+    return fields
+  }
+
+  const headers = parseRow(lines[0]).map((h) => h.toLowerCase())
+  if (!headers.includes('date') || !headers.includes('description') || !headers.includes('amount')) {
+    throw new Error('CSV must have at least: date, description, amount columns in the header row.')
+  }
+
   return lines.slice(1).filter((l) => l.trim()).map((line) => {
-    const vals = line.split(',').map((v) => v.trim().replace(/^"|"$/g, ''))
-    const row = {}
-    headers.forEach((h, i) => (row[h] = vals[i] ?? ''))
+    const vals = parseRow(line)
+    const row  = {}
+    headers.forEach((h, i) => { row[h] = vals[i] ?? '' })
     return row
   })
 }
@@ -56,7 +83,9 @@ async function handleUpload() {
   try {
     const text = await file.value.text()
     const rows = parseCsv(text)
-    preview.value = await transactionService.importPreview(rows)
+    const res  = await transactionService.importPreview(rows)
+    preview.value  = res
+    importId.value = res.import_id ?? null  // store for the confirm step
     step.value = 2
   } catch (err) {
     if (typeof err === 'string' || err instanceof Error) {
@@ -72,13 +101,14 @@ async function handleUpload() {
 // ── Step 2 helpers ────────────────────────────────────────
 const validRows   = computed(() => preview.value?.preview.filter((r) => r.valid) ?? [])
 const invalidRows = computed(() => preview.value?.preview.filter((r) => !r.valid) ?? [])
+const importId    = ref(null)  // returned by the backend in step 1
 
 async function handleConfirm() {
   if (!validRows.value.length) return
   loading.value = true
   apiError.value = ''
   try {
-    result.value = await transactionService.importConfirm(validRows.value)
+    result.value = await transactionService.importConfirm(importId.value, validRows.value)
     step.value = 3
   } catch (err) {
     apiError.value = err?.message ?? 'Import failed. Please try again.'
@@ -89,7 +119,7 @@ async function handleConfirm() {
 
 function reset() {
   step.value = 1; file.value = null; parseError.value = ''
-  apiError.value = ''; preview.value = null; result.value = null
+  apiError.value = ''; preview.value = null; result.value = null; importId.value = null
 }
 
 const TEMPLATE_HEADERS = 'date,description,amount,type,account_id,category_id,destination_account_id,notes'
