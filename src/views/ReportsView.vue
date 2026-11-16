@@ -22,6 +22,7 @@
  */
 import { ref, computed, reactive } from 'vue'
 import reportsService  from '@/services/reportsService'
+import transactionService from '@/services/transactionService'
 import { formatCurrency, formatPercent, formatDate } from '@/utils/format'
 
 import PageHeader   from '@/components/common/PageHeader.vue'
@@ -42,6 +43,7 @@ const to      = ref(today)
 const loading = ref(false)
 const error   = ref('')
 const report  = ref(null)
+const transactions = ref([])  // individual transactions for the report
 const generated = ref(false)
 
 // Quick-select period presets
@@ -61,9 +63,16 @@ function applyPreset(p) {
 async function generate() {
   if (!from.value || !to.value) { error.value = 'Please select a date range.'; return }
   if (from.value > to.value)    { error.value = '"From" must be before "To".'; return }
-  loading.value = true; error.value = ''; report.value = null
+  loading.value = true; error.value = ''; report.value = null; transactions.value = []
   try {
-    report.value = await reportsService.getSummary({ from: from.value, to: to.value })
+    // Fetch both the summary and the individual transactions in parallel
+    const [summary, txnRes] = await Promise.all([
+      reportsService.getSummary({ from: from.value, to: to.value }),
+      transactionService.list({ from: from.value, to: to.value, page_size: 200 }),
+    ])
+    report.value = summary
+    // txnRes is { data, meta } in real mode, or { data, meta } in mock mode
+    transactions.value = txnRes.data ?? txnRes ?? []
     generated.value = true
   } catch (e) {
     error.value = e?.message ?? 'Failed to generate report.'
@@ -376,6 +385,50 @@ const periodLabel = computed(() => {
                 <td class="px-5 py-3 text-right tabular-nums font-semibold"
                   :class="(acc.income - acc.expenses) >= 0 ? 'text-navy-800' : 'text-rose-600'">
                   {{ (acc.income - acc.expenses) >= 0 ? '+' : '' }}{{ formatCurrency(acc.income - acc.expenses) }}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </BaseCard>
+
+      <!-- ── 6. Transaction list ────────────────────────────── -->
+      <BaseCard v-if="transactions.length" no-pad>
+        <div class="px-5 pt-4 pb-2 border-b border-slate-100">
+          <h2 class="section-title">Transactions ({{ transactions.length }})</h2>
+          <p class="muted mt-0.5">All transactions in the selected period · transfers excluded from totals</p>
+        </div>
+        <div class="overflow-x-auto max-h-[500px] overflow-y-auto">
+          <table class="w-full text-sm" aria-label="Transaction list">
+            <thead class="sticky top-0 bg-white z-10">
+              <tr class="border-b border-slate-100">
+                <th class="px-5 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Date</th>
+                <th class="px-5 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide">Description</th>
+                <th class="px-5 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide hidden sm:table-cell">Category</th>
+                <th class="px-5 py-2.5 text-left text-xs font-semibold text-slate-500 uppercase tracking-wide hidden md:table-cell">Account</th>
+                <th class="px-5 py-2.5 text-center text-xs font-semibold text-slate-500 uppercase tracking-wide">Type</th>
+                <th class="px-5 py-2.5 text-right text-xs font-semibold text-slate-500 uppercase tracking-wide">Amount</th>
+              </tr>
+            </thead>
+            <tbody class="divide-y divide-slate-50">
+              <tr
+                v-for="t in transactions"
+                :key="t.id"
+                class="hover:bg-slate-50 transition-colors"
+              >
+                <td class="px-5 py-2.5 font-mono text-xs text-slate-600 whitespace-nowrap">{{ t.date }}</td>
+                <td class="px-5 py-2.5 text-navy-800 max-w-[200px] truncate" :title="t.description">{{ t.description }}</td>
+                <td class="px-5 py-2.5 text-slate-600 hidden sm:table-cell">{{ t.category_name ?? '—' }}</td>
+                <td class="px-5 py-2.5 text-slate-600 hidden md:table-cell">{{ t.account_name ?? '—' }}</td>
+                <td class="px-5 py-2.5 text-center">
+                  <BaseBadge
+                    :variant="{ income: 'green', expense: 'red', transfer: 'blue' }[t.type] ?? 'neutral'"
+                    size="sm"
+                  >{{ t.type }}</BaseBadge>
+                </td>
+                <td class="px-5 py-2.5 text-right tabular-nums font-semibold whitespace-nowrap"
+                  :class="t.type === 'income' ? 'text-emerald-700' : t.type === 'expense' ? 'text-rose-600' : 'text-blue-600'">
+                  {{ t.type === 'expense' ? '−' : t.type === 'transfer' ? '⇄' : '+' }}{{ formatCurrency(t.amount) }}
                 </td>
               </tr>
             </tbody>
