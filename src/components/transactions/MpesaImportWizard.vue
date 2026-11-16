@@ -163,10 +163,15 @@ async function handleConfirm() {
     importError.value = 'No rows selected for import.'
     return
   }
+  if (!defaultAccount.value) {
+    importError.value = 'No M-Pesa account found. Please add a Mobile Money account first in Accounts, then retry.'
+    return
+  }
 
   importLoading.value = true; importError.value = ''
 
-  // Build payloads in the IFAS transaction shape
+  // Build payloads — use the account the user selected per row,
+  // falling back to the detected M-Pesa account
   const payloads = selectedRows.value.map((r) => ({
     date:                      r.date,
     description:               r.description,
@@ -174,20 +179,27 @@ async function handleConfirm() {
     type:                      r.type,
     category_id:               r.type !== 'transfer' ? (r._catId || null) : null,
     account_id:                r._accountId || defaultAccount.value,
-    destination_account_id:    r.type === 'transfer' ? null : null,
+    destination_account_id:    null,
     notes:                     r.notes,
   }))
 
   try {
-    // Use the existing CSV import endpoint (same two-step flow):
-    // step 1: preview (we pass already-parsed rows as the "rows" array)
+    // Two-step: preview (validates each row), then confirm (inserts)
     const previewRes = await transactionService.importPreview(payloads)
-    // step 2: confirm
+    const validRows  = previewRes.preview?.filter((r) => r.valid)
+                       ?? payloads.map((p, i) => ({ row: i + 1, data: p, valid: true, errors: [] }))
+
+    if (!validRows.length) {
+      importError.value = `All ${payloads.length} rows failed validation. Check that your M-Pesa account is set up in Accounts.`
+      importLoading.value = false
+      return
+    }
+
     const confirmRes = await transactionService.importConfirm(
       previewRes.import_id ?? 'mpesa',
-      previewRes.preview?.filter((r) => r.valid) ?? payloads.map((p, i) => ({ row: i + 1, data: p, valid: true, errors: [] }))
+      validRows
     )
-    importResult.value = { imported: confirmRes.imported ?? selectedRows.value.length }
+    importResult.value = { imported: confirmRes.imported ?? validRows.length }
     step.value = 4
   } catch (e) {
     importError.value = e?.message ?? 'Import failed. Please try again.'
@@ -334,8 +346,21 @@ function reset() {
               </div>
             </div>
 
-            <!-- Import error -->
-            <BaseAlert v-if="importError" variant="error" class="mb-4" dismissible @dismiss="importError = ''">{{ importError }}</BaseAlert>
+            <!-- Account override (re-assign all rows to a different account) -->
+            <div v-if="accountOptions.length" class="flex flex-wrap items-center gap-3 mb-3 p-3 bg-blue-50 border border-blue-200 rounded-xl text-xs text-blue-800">
+              <span class="font-medium">Assign all to account:</span>
+              <select
+                class="text-xs border border-blue-300 rounded px-2 py-1 bg-white text-navy-700 focus:outline-none focus:ring-1 focus:ring-blue-500"
+                @change="rows.value.forEach((r) => r._accountId = $event.target.value)"
+              >
+                <option value="">— keep per-row default —</option>
+                <option v-for="a in accountOptions" :key="a.value" :value="a.value">{{ a.label }}</option>
+              </select>
+              <span class="text-blue-600">Pick your M-Pesa account here if the default is wrong.</span>
+            </div>
+            <div v-else class="flex items-center gap-2 p-3 bg-rose-50 border border-rose-200 rounded-xl text-xs text-rose-700 mb-3">
+              ⚠ No accounts found. <strong>Add a Mobile Money account in Accounts first</strong>, then come back to import.
+            </div>
 
             <!-- Row counts + select all -->
             <div class="flex flex-wrap items-center justify-between gap-3 mb-3">

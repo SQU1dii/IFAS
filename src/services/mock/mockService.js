@@ -345,8 +345,9 @@ export async function mockDeleteTransaction(id, wsId = 'ws-personal') {
  * Parses a CSV payload and returns validated rows + any row-level errors.
  * Errors are non-fatal — the user can still confirm the valid rows.
  */
-export async function mockCsvPreview(rows) {
+export async function mockCsvPreview(rows, wsId = 'ws-personal') {
   await delay(600)
+  const slice = getSlice(wsId)
   const REQUIRED = ['date', 'description', 'amount', 'type', 'account_id']
   const preview = rows.map((raw, i) => {
     const errors = []
@@ -357,34 +358,37 @@ export async function mockCsvPreview(rows) {
     if (raw.amount && Number(raw.amount) <= 0)   errors.push({ field: 'amount', message: 'amount must be positive' })
     if (raw.type && !['income', 'expense', 'transfer'].includes(raw.type))
       errors.push({ field: 'type', message: 'type must be income, expense, or transfer' })
-    if (!_accounts.find((a) => a.id === raw.account_id || a.name === raw.account_id))
-      errors.push({ field: 'account_id', message: 'account not found' })
 
-    const acc = _accounts.find((a) => a.id === raw.account_id || a.name === raw.account_id)
+    // Look up account in the workspace slice first, then fall back to global store
+    const acc = slice.accounts.find((a) => a.id === raw.account_id || a.name === raw.account_id)
+              ?? _accounts.find((a) => a.id === raw.account_id || a.name === raw.account_id)
+    if (!acc) errors.push({ field: 'account_id', message: 'account not found' })
+
     return {
       row: i + 1,
       data: {
         ...raw,
-        amount: Number(raw.amount),
-        account_id: acc?.id ?? raw.account_id,
+        amount:       Number(raw.amount),
+        account_id:   acc?.id   ?? raw.account_id,
         account_name: acc?.name ?? raw.account_id,
       },
       errors,
       valid: errors.length === 0,
     }
   })
-  return { preview, total: rows.length, valid: preview.filter((r) => r.valid).length }
+  return {
+    import_id: 'mock-import-' + Date.now(),
+    preview,
+    total: rows.length,
+    valid: preview.filter((r) => r.valid).length,
+  }
 }
 
-/**
- * POST /transactions/import/confirm
- * Inserts only the valid rows returned from the preview step.
- */
-export async function mockCsvConfirm(validRows) {
+export async function mockCsvConfirm(validRows, wsId = 'ws-personal') {
   await delay(700)
   const created = []
   for (const row of validRows) {
-    const txn = await mockCreateTransaction(row.data)
+    const txn = await mockCreateTransaction(row.data ?? row, wsId)
     created.push(txn)
   }
   return { imported: created.length, transactions: created }
