@@ -735,12 +735,13 @@ function pctChange(curr, prev) {
   return ((curr - prev) / Math.abs(prev)) * 100
 }
 
-function computeBudgetUtilization(txns, endIso) {
+function computeBudgetUtilization(txns, budgets, endIso) {
   const end   = new Date(endIso || new Date())
+  if (Number.isNaN(end.getTime())) return []
   const start = new Date(end.getFullYear(), end.getMonth(), 1).toISOString().slice(0, 10)
   const endStr = endIso || end.toISOString().slice(0, 10)
 
-  return _budgets.map((b) => {
+  return (budgets || []).map((b) => {
     const spent = txns
       .filter((t) => t.type === 'expense' && t.category_id === b.category_id && inRange(t.date, start, endStr))
       .reduce((s, t) => s + t.amount, 0)

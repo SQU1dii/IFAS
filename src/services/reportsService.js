@@ -9,7 +9,7 @@ import { mockGetReportSummary } from './mock/mockService'
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true'
 const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:4000/api/v1'
 
-function wsId()         { return useWorkspaceStore().wsId }
+function wsId()         { return useWorkspaceStore().wsId ?? 'ws-personal' }
 function wsPath(p = '') { return `/workspaces/${wsId()}${p}` }
 
 export default {
