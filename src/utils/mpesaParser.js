@@ -123,9 +123,28 @@ export async function extractTextFromPdf(file, password = '') {
   for (let p = 1; p <= pdf.numPages; p++) {
     const page    = await pdf.getPage(p)
     const content = await page.getTextContent()
-    const items   = content.items.map((i) => i.str)
-    tabPages.push(items.join('\t'))
-    spacePages.push(items.join(' '))
+
+    // Group text items by their Y position to reconstruct visual rows.
+    // pdfjs-dist returns items in stream order, not visual order.
+    // Without grouping, all items on a page become one long line,
+    // and the row parser can't find transaction boundaries.
+    const rowMap = {}
+    for (const item of content.items) {
+      if (!item.str || !item.str.trim()) continue
+      // Round Y to nearest 2px to merge items on the same visual line
+      const y = Math.round(item.transform[5] / 2) * 2
+      if (!rowMap[y]) rowMap[y] = []
+      rowMap[y].push({ x: item.transform[4], text: item.str })
+    }
+
+    // Sort rows top-to-bottom (Y descending = top of page first)
+    const sortedYs = Object.keys(rowMap).map(Number).sort((a, b) => b - a)
+    for (const y of sortedYs) {
+      // Sort items left-to-right within each row
+      const cells = rowMap[y].sort((a, b) => a.x - b.x).map((c) => c.text)
+      tabPages.push(cells.join('\t'))
+      spacePages.push(cells.join(' '))
+    }
   }
 
   return {
@@ -256,11 +275,11 @@ function extractRowFromCols(cols, headerCols) {
   const withdrRaw  = cols[idx.withdrawn]  ?? ''
   const balanceRaw = cols[idx.balance]    ?? ''
 
-  // Skip non-completed
-  if (status && !status.toLowerCase().includes('complet')) return null
+  // Skip non-completed (but only if status field is present and non-empty)
+  if (status && status.trim() && !status.toLowerCase().includes('complet')) return null
 
-  // Skip rows without a plausible receipt number
-  if (!receipt || receipt.length < 6 || !/[A-Z0-9]{6,}/.test(receipt)) return null
+  // Skip rows without a plausible receipt number (at least 5 alphanumeric chars)
+  if (!receipt || receipt.length < 5 || !/[A-Z0-9]{5,}/i.test(receipt)) return null
 
   const paidIn    = parseAmount(paidInRaw)
   const withdrawn = parseAmount(withdrRaw)

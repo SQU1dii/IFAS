@@ -37,7 +37,7 @@ export const useAssistantStore = defineStore('assistant', () => {
 
     try {
       const res = await workspaceService.sendMessage(
-        ws.wsId,
+        ws.wsId ?? 'ws-personal',
         conversationId.value,
         content.trim()
       )

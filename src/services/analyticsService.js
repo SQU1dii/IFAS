@@ -13,7 +13,7 @@ import {
 
 const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true'
 
-function wsId()         { return useWorkspaceStore().wsId }
+function wsId()         { return useWorkspaceStore().wsId ?? 'ws-personal' }
 function wsPath(p = '') { return `/workspaces/${wsId()}${p}` }
 
 export default {

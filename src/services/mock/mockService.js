@@ -106,6 +106,10 @@ let _contributions = MOCK_CONTRIBUTIONS.map((c) => ({ ...c }))
 // Track the current user so refresh doesn't overwrite with the default mock user.
 let _currentUserId = null
 
+// Store registered users so login can find them by email.
+// Without this, every login resets to user-001 (Amara) and shows Amara's workspaces.
+const _registeredUsers = new Map()  // email → user object
+
 function nextId(prefix) { return `${prefix}-${++_idSeq}` }
 
 function inRange(date, start, end) {
@@ -128,8 +132,14 @@ function cons(wsId) { return getSlice(wsId).contributions }
 export async function mockLogin({ email, password }) {
   await delay()
   if (!email || !password) throw { message: 'Email and password are required.', status: 400 }
-  // Accept any credentials in mock mode.
-  // Use the provided email; fall back to a name derived from the email.
+  // Check if this email was registered in this session
+  if (_registeredUsers.has(email)) {
+    const user = _registeredUsers.get(email)
+    _currentUserId = user.id
+    _user = { ...user }
+    return { accessToken: 'mock-access-token-' + Date.now(), user: { ...user } }
+  }
+  // Not registered — create a demo user from the email
   const name = email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
   const user = { ...MOCK_USER, id: 'user-001', name, email }
   _currentUserId = user.id
@@ -159,6 +169,7 @@ export async function mockRegister({ name, email, password }) {
   }
   _currentUserId = userId
   _user = user
+  _registeredUsers.set(email, user)  // Store so login can find this user later
   return { accessToken: 'mock-access-token-' + Date.now(), user }
 }
 
