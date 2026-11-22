@@ -1,11 +1,13 @@
 <script setup>
 /**
- * CsvImportWizard — three-step CSV import flow.
+ * CsvImportWizard — four-step CSV import flow with column mapping.
  *
- * Step 1 — Upload:   user selects a CSV file; we parse it client-side.
- * Step 2 — Preview:  send parsed rows to /transactions/import/preview;
- *                    show row-level errors; user can proceed with valid rows only.
- * Step 3 — Result:   show how many rows were imported.
+ * Step 1 — Upload:     user selects a CSV file; we parse headers + first 5 rows client-side.
+ * Step 2 — Map:        if headers don't match IFAS fields, show column mapping wizard.
+ *                      User can save mapping as a bank template for future imports.
+ * Step 3 — Preview:    send mapped rows to /transactions/import/preview;
+ *                      show row-level errors; user can proceed with valid rows only.
+ * Step 4 — Result:     show how many rows were imported.
  *
  * Required CSV columns: date, description, amount, type, account_id
  * Optional:             category_id, destination_account_id, notes
@@ -18,10 +20,11 @@ import BaseButton from '@/components/common/BaseButton.vue'
 import BaseAlert  from '@/components/common/BaseAlert.vue'
 import BaseSpinner from '@/components/common/BaseSpinner.vue'
 import transactionService from '@/services/transactionService'
+import CsvColumnMappingWizard from '@/components/transactions/CsvColumnMappingWizard.vue'
 
 const emit = defineEmits(['done', 'close'])
 
-const step       = ref(1)  // 1=upload, 2=preview, 3=result
+const step       = ref(1)  // 1=upload, 2=map, 3=preview, 4=result
 const file       = ref(null)
 const parseError = ref('')
 const loading    = ref(false)
@@ -29,12 +32,23 @@ const apiError   = ref('')
 const preview    = ref(null)  // { preview: Row[], total, valid }
 const result     = ref(null)  // { imported, transactions }
 
-// ── Step 1 helpers ────────────────────────────────────────
-function onFileChange(e) {
-  file.value = e.target.files[0] ?? null
-  parseError.value = ''
-}
+// Parsed CSV data (before mapping)
+const rawHeaders   = ref([])
+const rawRows      = ref([])
+const rawSampleRows = ref([])
 
+// Column mapping state
+const columnMapping = ref({})
+const savedTemplate = ref(null)
+const showMappingStep = ref(false)
+
+// Import ID from backend
+const importId    = ref(null)
+
+const IFAS_REQUIRED = ['date', 'description', 'amount', 'type', 'account_id']
+const IFAS_ALL = [...IFAS_REQUIRED, 'category_id', 'destination_account_id', 'notes']
+
+// ── Helpers ────────────────────────────────────────────────────
 function parseCsv(text) {
   const lines = text.trim().split(/\r?\n/)
   if (lines.length < 2) throw new Error('File must have a header row and at least one data row.')
@@ -61,17 +75,20 @@ function parseCsv(text) {
     return fields
   }
 
-  const headers = parseRow(lines[0]).map((h) => h.toLowerCase())
-  if (!headers.includes('date') || !headers.includes('description') || !headers.includes('amount')) {
-    throw new Error('CSV must have at least: date, description, amount columns in the header row.')
-  }
-
-  return lines.slice(1).filter((l) => l.trim()).map((line) => {
+  const headers = parseRow(lines[0]).map((h) => h.trim())
+  const rows = lines.slice(1).filter((l) => l.trim()).map((line) => {
     const vals = parseRow(line)
     const row  = {}
     headers.forEach((h, i) => { row[h] = vals[i] ?? '' })
     return row
   })
+
+  return { headers, rows }
+}
+
+function headersMatchIfas(headers) {
+  const lower = headers.map(h => h.toLowerCase())
+  return IFAS_REQUIRED.every(req => lower.includes(req.toLowerCase()))
 }
 
 async function handleUpload() {
@@ -82,11 +99,31 @@ async function handleUpload() {
 
   try {
     const text = await file.value.text()
-    const rows = parseCsv(text)
-    const res  = await transactionService.importPreview(rows)
-    preview.value  = res
-    importId.value = res.import_id ?? null  // store for the confirm step
-    step.value = 2
+    const { headers, rows } = parseCsv(text)
+
+    rawHeaders.value = headers
+    rawRows.value = rows
+    rawSampleRows.value = rows.slice(0, 5)
+
+    // Check if headers already match IFAS fields
+    if (headersMatchIfas(headers)) {
+      // Direct to preview step
+      const res = await transactionService.importPreview(rows)
+      preview.value = res
+      importId.value = res.import_id ?? null
+      step.value = 3
+      showMappingStep.value = false
+    } else {
+      // Need column mapping step
+      // Check for saved template matching these headers
+      const template = findMatchingTemplate(headers)
+      if (template) {
+        savedTemplate.value = template
+        columnMapping.value = { ...template.mapping }
+      }
+      showMappingStep.value = true
+      step.value = 2
+    }
   } catch (err) {
     if (typeof err === 'string' || err instanceof Error) {
       parseError.value = err.message ?? String(err)
@@ -98,10 +135,79 @@ async function handleUpload() {
   }
 }
 
-// ── Step 2 helpers ────────────────────────────────────────
+function findMatchingTemplate(headers) {
+  // In a real app, this would come from a backend API or localStorage
+  // For now, check localStorage for saved templates
+  try {
+    const stored = localStorage.getItem('ifas_csv_templates')
+    if (stored) {
+      const templates = JSON.parse(stored)
+      // Match by exact header set
+      return templates.find(t => JSON.stringify(t.headers.sort()) === JSON.stringify(headers.sort()))
+    }
+  } catch {}
+  return null
+}
+
+function onMappingContinue(mapping) {
+  columnMapping.value = mapping
+  savedTemplate.value = null
+
+  // Transform raw rows using the mapping
+  const mappedRows = rawRows.value.map(row => {
+    const mapped = {}
+    for (const [ifasField, csvHeader] of Object.entries(mapping)) {
+      mapped[ifasField] = row[csvHeader] ?? ''
+    }
+    return mapped
+  })
+
+  // Send to backend for validation
+  loading.value = true
+  apiError.value = ''
+  transactionService.importPreview(mappedRows)
+    .then(res => {
+      preview.value = res
+      importId.value = res.import_id ?? null
+      step.value = 3
+    })
+    .catch(err => {
+      apiError.value = err?.message ?? 'Preview failed. Please try again.'
+    })
+    .finally(() => {
+      loading.value = false
+    })
+}
+
+function onMappingSaveTemplate(payload) {
+  // Save to localStorage
+  try {
+    const stored = localStorage.getItem('ifas_csv_templates')
+    const templates = stored ? JSON.parse(stored) : []
+    templates.push({
+      ...payload,
+      createdAt: new Date().toISOString(),
+    })
+    localStorage.setItem('ifas_csv_templates', JSON.stringify(templates))
+    savedTemplate.value = payload
+  } catch (e) {
+    console.warn('Failed to save CSV template:', e)
+  }
+}
+
+function onMappingBack() {
+  step.value = 1
+  showMappingStep.value = false
+  rawHeaders.value = []
+  rawRows.value = []
+  rawSampleRows.value = []
+  columnMapping.value = {}
+  savedTemplate.value = null
+}
+
+// ── Step 3: Preview helpers ────────────────────────────────────
 const validRows   = computed(() => preview.value?.preview.filter((r) => r.valid) ?? [])
 const invalidRows = computed(() => preview.value?.preview.filter((r) => !r.valid) ?? [])
-const importId    = ref(null)  // returned by the backend in step 1
 
 async function handleConfirm() {
   if (!validRows.value.length) return
@@ -109,7 +215,7 @@ async function handleConfirm() {
   apiError.value = ''
   try {
     result.value = await transactionService.importConfirm(importId.value, validRows.value)
-    step.value = 3
+    step.value = 4
   } catch (err) {
     apiError.value = err?.message ?? 'Import failed. Please try again.'
   } finally {
@@ -118,8 +224,19 @@ async function handleConfirm() {
 }
 
 function reset() {
-  step.value = 1; file.value = null; parseError.value = ''
-  apiError.value = ''; preview.value = null; result.value = null; importId.value = null
+  step.value = 1
+  file.value = null
+  parseError.value = ''
+  apiError.value = ''
+  preview.value = null
+  result.value = null
+  importId.value = null
+  rawHeaders.value = []
+  rawRows.value = []
+  rawSampleRows.value = []
+  columnMapping.value = {}
+  savedTemplate.value = null
+  showMappingStep.value = false
 }
 
 const TEMPLATE_HEADERS = 'date,description,amount,type,account_id,category_id,destination_account_id,notes'
@@ -137,7 +254,6 @@ function downloadRejected() {
   const rejected = preview.value.preview.filter((r) => !r.valid)
   if (!rejected.length) return
 
-  // Build CSV: original row data + a "rejection_reasons" column
   const headers = ['date', 'description', 'amount', 'type', 'account_id', 'category_id', 'destination_account_id', 'notes', 'rejection_reasons']
   const rows = rejected.map((r) => [
     r.data.date         ?? '',
@@ -181,7 +297,7 @@ function downloadRejected() {
             <!-- Step indicators -->
             <div class="flex items-center gap-1.5" aria-label="Step progress">
               <span
-                v-for="s in [1,2,3]" :key="s"
+                v-for="s in [1,2,3,4]" :key="s"
                 :class="['h-1.5 rounded-full transition-all', s === step ? 'w-6 bg-emerald-500' : s < step ? 'w-3 bg-emerald-300' : 'w-3 bg-slate-200']"
               />
             </div>
@@ -240,8 +356,20 @@ function downloadRejected() {
             </label>
           </template>
 
-          <!-- ── Step 2: Preview ────────────────────────── -->
-          <template v-else-if="step === 2">
+          <!-- ── Step 2: Column Mapping ──────────────────── -->
+          <template v-else-if="step === 2 && showMappingStep">
+            <CsvColumnMappingWizard
+              :headers="rawHeaders"
+              :sample-rows="rawSampleRows"
+              :saved-template="savedTemplate"
+              @continue="onMappingContinue"
+              @back="onMappingBack"
+              @save-template="onMappingSaveTemplate"
+            />
+          </template>
+
+          <!-- ── Step 3: Preview ────────────────────────── -->
+          <template v-else-if="step === 3">
             <BaseAlert v-if="apiError" variant="error" class="mb-4">{{ apiError }}</BaseAlert>
 
             <div class="flex items-center justify-between mb-3">
@@ -290,7 +418,7 @@ function downloadRejected() {
             </div>
           </template>
 
-          <!-- ── Step 3: Result ─────────────────────────── -->
+          <!-- ── Step 4: Result ─────────────────────────── -->
           <template v-else>
             <div class="flex flex-col items-center py-8 text-center gap-3">
               <span class="h-14 w-14 rounded-full bg-emerald-100 flex items-center justify-center">
@@ -321,8 +449,8 @@ function downloadRejected() {
                 Parse & Preview
               </BaseButton>
             </template>
-            <template v-else-if="step === 2">
-              <BaseButton variant="secondary" @click="step = 1">Back</BaseButton>
+            <template v-else-if="step === 3">
+              <BaseButton variant="secondary" @click="step = showMappingStep ? 2 : 1">Back</BaseButton>
               <BaseButton v-if="invalidRows.length" variant="ghost" size="sm" @click="downloadRejected">
                 <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" aria-hidden="true"><path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12M12 16.5V3" /></svg>
                 Download rejected ({{ invalidRows.length }})

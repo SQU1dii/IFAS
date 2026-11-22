@@ -1,6 +1,6 @@
 <script setup>
 /**
- * MpesaImportWizard — 4-step M-Pesa PDF statement import wizard.
+ * MpesaImportWizard — 4-step M-Pesa PDF statement import wizard with 4-Tier Classification.
  *
  * Step 1 — Upload
  *   User selects a PDF. If the file is password-protected (which all
@@ -8,12 +8,17 @@
  *
  * Step 2 — Extracting
  *   pdfjs-dist loads the PDF, decrypts it, and extracts raw text.
- *   The mpesaParser converts the text into structured transaction rows.
- *   Shows a summary: period, customer name, row counts.
+ *   The mpesaParser converts the text into structured transaction rows with confidence scoring.
+ *   Shows a summary: period, customer name, row counts, needs-review count.
  *
- * Step 3 — Preview & Category Mapping
- *   Every parsed row is shown in a table. The type badge and auto-guessed
- *   category can be changed per row before import. Rows can be excluded.
+ * Step 3 — Preview & Category Mapping (with "Needs Review" queue)
+ *   Every parsed row is shown in a table with confidence indicators.
+ *   Tier 1 (Merchant Dict): High confidence, green badge
+ *   Tier 2 (User Rules): High confidence, blue badge
+ *   Tier 3 (Keywords): Medium confidence, amber badge
+ *   Tier 4 (Needs Review): Low confidence (<80%), red badge — flagged for manual review
+ *   User can change type/category per row. Manual categorization saves to user rules (Tier 2).
+ *   Rows can be excluded from import.
  *   Transfers are shown with source → destination.
  *
  * Step 4 — Result
@@ -29,8 +34,8 @@
  * • Wrong password → pdfjs throws PasswordException → shown as a clear
  *   error message.
  */
-import { ref, computed, reactive } from 'vue'
-import { extractTextFromPdf, parseMpesaText } from '@/utils/mpesaParser'
+import { ref, computed, reactive, watch } from 'vue'
+import { extractTextFromPdf, parseMpesaText, addUserMerchantRule, normalizeRecipient } from '@/utils/mpesaParser'
 import transactionService from '@/services/transactionService'
 import { formatCurrency, formatDate } from '@/utils/format'
 import { useWorkspaceStore } from '@/stores/workspace'
@@ -87,6 +92,10 @@ async function handleExtract() {
       _catId:   t.category_id   ?? '',
       _catName: t.category_name ?? '',
       _accountId: t.account_id  ?? defaultAccount.value,
+      _typeConfidence: t.type_confidence,
+      _catConfidence: t.category_confidence,
+      _catSource: t.category_source,
+      _needsReview: t.needs_review,
     }))
 
     step.value = 3
@@ -116,8 +125,18 @@ const defaultAccount = computed(() => {
 })
 
 // ── Step 3: preview helpers ───────────────────────────────
-const selectedRows = computed(() => rows.value.filter((r) => r._include))
+const showNeedsReviewOnly = ref(false)
+
+const filteredRows = computed(() => {
+  if (showNeedsReviewOnly.value) {
+    return rows.value.filter(r => r._needsReview)
+  }
+  return rows.value
+})
+
+const selectedRows = computed(() => filteredRows.value.filter((r) => r._include))
 const skippedRows  = computed(() => rows.value.filter((r) => !r._include))
+const needsReviewRows = computed(() => rows.value.filter((r) => r._needsReview))
 
 const categoryOptions = computed(() => [
   { value: '', label: '— Select category —' },
@@ -140,17 +159,56 @@ function typeBadge(type) {
   return { income: 'green', expense: 'red', transfer: 'blue' }[type] ?? 'neutral'
 }
 
+function confidenceBadge(confidence) {
+  if (confidence >= 0.9) return { label: 'High', variant: 'success' }
+  if (confidence >= 0.8) return { label: 'Medium', variant: 'warning' }
+  return { label: 'Low', variant: 'error' }
+}
+
+function sourceBadge(source) {
+  const map = {
+    merchant_dict:    { label: 'Tier 1: Merchant Dict', color: 'bg-emerald-100 text-emerald-700' },
+    user_rule:        { label: 'Tier 2: Your Rules',    color: 'bg-blue-100 text-blue-700' },
+    keyword_heuristic:{ label: 'Tier 3: Keywords',      color: 'bg-amber-100 text-amber-700' },
+    transfer_rule:    { label: 'Transfer Rule',         color: 'bg-blue-100 text-blue-700' },
+    none:             { label: 'Tier 4: Needs Review',  color: 'bg-rose-100 text-rose-700' },
+  }
+  return map[source] ?? { label: source, color: 'bg-slate-100 text-slate-700' }
+}
+
 function toggleAll(include) {
-  rows.value.forEach((r) => (r._include = include))
+  filteredRows.value.forEach((r) => (r._include = include))
 }
 
 // Update category name when category_id changes in a row
+// Also save as user rule (Tier 2) for future imports
 function onCatChange(row, catId) {
   row._catId = catId
   const cat = props.categories.find((c) => c.id === catId)
   row._catName = cat?.name ?? ''
   row.category_id   = catId   || null
   row.category_name = cat?.name ?? null
+  row._needsReview = false // Manual assignment clears needs-review flag
+
+  // Save as user rule (Tier 2) for future imports
+  if (catId && row.description) {
+    const normalized = normalizeRecipient(row.description)
+    if (normalized) {
+      addUserMerchantRule(normalized, catId, cat?.name ?? '')
+    }
+  }
+}
+
+// Update type - also clear needs-review if manually changed
+function onTypeChange(row, newType) {
+  row.type = newType
+  if (newType === 'transfer') {
+    row.category_id = null
+    row.category_name = null
+    row._catId = ''
+    row._catName = ''
+  }
+  row._needsReview = false
 }
 
 // ── Step 3 → confirm import ───────────────────────────────
@@ -213,6 +271,7 @@ function reset() {
   step.value = 1; file.value = null; password.value = ''
   error.value = ''; parsed.value = null; rows.value = []
   importResult.value = null; importError.value = ''
+  showNeedsReviewOnly.value = false
 }
 </script>
 
@@ -224,7 +283,7 @@ function reset() {
     >
       <div class="absolute inset-0 bg-navy-900/40 backdrop-blur-sm" @click="emit('close')" />
 
-      <div class="relative w-full max-w-3xl bg-white rounded-2xl shadow-2xl overflow-hidden animate-slide-up flex flex-col max-h-[92vh]">
+      <div class="relative w-full max-w-4xl bg-white rounded-2xl shadow-2xl overflow-hidden animate-slide-up flex flex-col max-h-[92vh]">
 
         <!-- ── Header ──────────────────────────────────────── -->
         <div class="flex items-center justify-between px-6 py-4 border-b border-slate-200 shrink-0">
@@ -343,6 +402,9 @@ function reset() {
                 <span><strong>Total rows:</strong> {{ parsed.summary.total }}</span>
                 <span class="text-emerald-700"><strong>Paid in:</strong> {{ formatCurrency(parsed.summary.total_paid_in) }}</span>
                 <span class="text-rose-600"><strong>Withdrawn:</strong> {{ formatCurrency(parsed.summary.total_withdrawn) }}</span>
+                <span v-if="parsed.summary.needs_review_count > 0" class="text-amber-700 font-semibold">
+                  <strong>⚠ Needs Review:</strong> {{ parsed.summary.needs_review_count }}
+                </span>
               </div>
             </div>
 
@@ -362,9 +424,9 @@ function reset() {
               ⚠ No accounts found. <strong>Add a Mobile Money account in Accounts first</strong>, then come back to import.
             </div>
 
-            <!-- Row counts + select all -->
+            <!-- Row counts + filter + select all -->
             <div class="flex flex-wrap items-center justify-between gap-3 mb-3">
-              <div class="flex items-center gap-2 text-xs text-slate-500">
+              <div class="flex items-center gap-2 text-xs text-slate-500 flex-wrap">
                 <span class="text-emerald-600 font-medium">{{ selectedRows.length }} selected</span>
                 <span>·</span>
                 <span>{{ skippedRows.length }} excluded</span>
@@ -374,11 +436,24 @@ function reset() {
                 <span class="text-rose-600">{{ parsed.summary.expense_count }} expenses</span>
                 <span>·</span>
                 <span class="text-blue-600">{{ parsed.summary.transfer_count }} transfers</span>
+                <span v-if="needsReviewRows.length" class="text-amber-600 font-medium">· ⚠ {{ needsReviewRows.length }} need review</span>
               </div>
-              <div class="flex gap-1.5">
+              <div class="flex items-center gap-2">
+                <label class="flex items-center gap-1.5 cursor-pointer text-xs text-slate-600">
+                  <input type="checkbox" v-model="showNeedsReviewOnly" class="rounded" />
+                  Show only "Needs Review"
+                </label>
                 <BaseButton variant="ghost" size="sm" @click="toggleAll(true)">Select all</BaseButton>
                 <BaseButton variant="ghost" size="sm" @click="toggleAll(false)">Deselect all</BaseButton>
               </div>
+            </div>
+
+            <!-- Confidence legend -->
+            <div class="mb-3 p-2 bg-slate-50 rounded-lg text-[10px] text-slate-500 flex flex-wrap gap-4">
+              <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-emerald-500"></span> Tier 1: Merchant Dict (≥90%)</span>
+              <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-blue-500"></span> Tier 2: Your Rules (≥95%)</span>
+              <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-amber-500"></span> Tier 3: Keywords (≥80%)</span>
+              <span class="flex items-center gap-1"><span class="w-2 h-2 rounded-full bg-rose-500"></span> Tier 4: Needs Review (<80%)</span>
             </div>
 
             <!-- Preview table -->
@@ -397,9 +472,9 @@ function reset() {
                 </thead>
                 <tbody class="divide-y divide-slate-100">
                   <tr
-                    v-for="row in rows"
+                    v-for="row in filteredRows"
                     :key="row._id"
-                    :class="['transition-colors', !row._include ? 'bg-slate-50 opacity-50' : 'hover:bg-slate-50']"
+                    :class="['transition-colors', !row._include ? 'bg-slate-50 opacity-50' : 'hover:bg-slate-50', row._needsReview ? 'bg-amber-50' : '']"
                   >
                     <!-- Include toggle -->
                     <td class="px-3 py-2.5">
@@ -418,11 +493,30 @@ function reset() {
                       <p v-if="row.type === 'transfer' && row.destination_account_name" class="text-slate-400 truncate">
                         → {{ row.destination_account_name }}
                       </p>
+                      <!-- Confidence badges -->
+                      <div class="flex flex-wrap gap-1 mt-1">
+                        <span v-if="row._typeConfidence !== undefined"
+                          :class="['inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium', confidenceBadge(row._typeConfidence).variant === 'success' ? 'bg-emerald-100 text-emerald-700' : confidenceBadge(row._typeConfidence).variant === 'warning' ? 'bg-amber-100 text-amber-700' : 'bg-rose-100 text-rose-700']"
+                        >
+                          Type: {{ Math.round(row._typeConfidence * 100) }}%
+                        </span>
+                        <span v-if="row._catConfidence !== undefined && row.type !== 'transfer'"
+                          :class="['inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium', row._catSource]"
+                        >
+                          {{ sourceBadge(row._catSource).label.replace('Tier ', 'T').replace(': ', ':') }} {{ Math.round(row._catConfidence * 100) }}%
+                        </span>
+                        <span v-if="row._needsReview"
+                          class="inline-flex items-center px-1.5 py-0.5 rounded text-[9px] font-medium bg-rose-100 text-rose-700 animate-pulse"
+                        >
+                          ⚠ Needs Review
+                        </span>
+                      </div>
                     </td>
                     <!-- Type selector -->
                     <td class="px-3 py-2.5">
                       <select
                         v-model="row.type"
+                        @change="onTypeChange(row, $event.target.value)"
                         class="text-xs border border-slate-200 rounded px-1.5 py-1 bg-white text-navy-700 focus:outline-none focus:ring-1 focus:ring-emerald-500"
                         :aria-label="'Type for ' + row.description"
                       >
@@ -450,7 +544,7 @@ function reset() {
                             {{ cat.name }}
                           </option>
                         </select>
-                        <span v-if="!row._catId" class="text-amber-500 ml-1 text-[10px]">⚠</span>
+                        <span v-if="!row._catId && row.type !== 'transfer'" class="text-amber-500 ml-1 text-[10px]">⚠</span>
                       </template>
                     </td>
                     <!-- Paid In -->
@@ -474,6 +568,7 @@ function reset() {
 
             <p class="text-xs text-slate-400 mt-2">
               ⚠ Rows without a category will be imported as uncategorised. You can assign categories later in the Transactions page.
+              <br>💡 When you manually assign a category to a "Needs Review" row, IFAS learns it for future imports.
             </p>
           </template>
 
@@ -549,4 +644,10 @@ function reset() {
 <style scoped>
 .modal-enter-active, .modal-leave-active { transition: opacity 0.2s ease; }
 .modal-enter-from, .modal-leave-to { opacity: 0; }
+
+@keyframes pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+.animate-pulse { animation: pulse 1.5s ease-in-out infinite; }
 </style>

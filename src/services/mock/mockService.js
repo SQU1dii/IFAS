@@ -243,15 +243,17 @@ export async function mockGetTransactions({
   page = 1, page_size = 15,
   type, category_id, account_id,
   search, from, to,
+  needs_review,
   wsId = 'ws-personal',
 } = {}) {
   await delay()
   let items = [...getSlice(wsId).transactions]
 
-  if (type)        items = items.filter((t) => t.type === type)
-  if (category_id) items = items.filter((t) => t.category_id === category_id)
-  if (account_id)  items = items.filter((t) => t.account_id === account_id || t.destination_account_id === account_id)
-  if (from || to)  items = items.filter((t) => inRange(t.date, from, to))
+  if (type)            items = items.filter((t) => t.type === type)
+  if (category_id)     items = items.filter((t) => t.category_id === category_id)
+  if (account_id)      items = items.filter((t) => t.account_id === account_id || t.destination_account_id === account_id)
+  if (from || to)      items = items.filter((t) => inRange(t.date, from, to))
+  if (needs_review)    items = items.filter((t) => t.needs_review === true)
   if (search) {
     const q = search.toLowerCase()
     items = items.filter((t) =>
@@ -300,6 +302,7 @@ export async function mockCreateTransaction(payload, wsId = 'ws-personal') {
     destination_account_id:   dest?.id   ?? null,
     destination_account_name: dest?.name ?? null,
     notes: payload.notes ?? '',
+    needs_review: payload.needs_review ?? false,
   }
   slice.transactions.unshift(txn)
   return txn
@@ -325,6 +328,7 @@ export async function mockUpdateTransaction(id, payload, wsId = 'ws-personal') {
     account_name:  acc?.name ?? slice.transactions[idx].account_name,
     destination_account_id:   dest?.id   ?? null,
     destination_account_name: dest?.name ?? null,
+    needs_review: payload.needs_review ?? slice.transactions[idx].needs_review ?? false,
   }
   return slice.transactions[idx]
 }

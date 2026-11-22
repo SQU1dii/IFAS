@@ -272,7 +272,58 @@ function generateTransactions() {
   return txns.sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0))
 }
 
-export const MOCK_TRANSACTIONS = generateTransactions()
+const baseTransactions = generateTransactions()
+
+// Add a few sample transactions flagged as "Needs Review" (simulating low-confidence M-Pesa imports)
+const needsReviewSamples = [
+  {
+    id: 'txn-nr-1',
+    date: '2025-11-15',
+    description: 'Customer Transfer to 254712345678 - JOHN KAMAU',
+    amount: 3500,
+    type: 'expense',
+    category_id: null,
+    category_name: null,
+    account_id: 'acc-mpesa',
+    account_name: 'M-Pesa',
+    destination_account_id: null,
+    destination_account_name: 'JOHN KAMAU',
+    notes: 'Ref: RJK4X8XR0C | ⚠ Needs Review: Unknown recipient',
+    needs_review: true,
+  },
+  {
+    id: 'txn-nr-2',
+    date: '2025-11-10',
+    description: 'Customer Transfer to 254798765432 - MARY WANJIKU',
+    amount: 12000,
+    type: 'expense',
+    category_id: null,
+    category_name: null,
+    account_id: 'acc-mpesa',
+    account_name: 'M-Pesa',
+    destination_account_id: null,
+    destination_account_name: 'MARY WANJIKU',
+    notes: 'Ref: QGM0A5SE3A | ⚠ Needs Review: Unknown recipient',
+    needs_review: true,
+  },
+  {
+    id: 'txn-nr-3',
+    date: '2025-11-05',
+    description: 'Merchant Payment Online to 522522 - UNKNOWN MERCHANT',
+    amount: 2800,
+    type: 'expense',
+    category_id: null,
+    category_name: null,
+    account_id: 'acc-mpesa',
+    account_name: 'M-Pesa',
+    destination_account_id: null,
+    destination_account_name: 'UNKNOWN MERCHANT',
+    notes: 'Ref: PLK9M2N1B4 | ⚠ Needs Review: Unrecognized till number',
+    needs_review: true,
+  },
+]
+
+export const MOCK_TRANSACTIONS = [...needsReviewSamples, ...baseTransactions]
 
 // ── Budgets ───────────────────────────────────────────────────
 // Monthly limits in KES. period: 'monthly' | 'yearly' only.

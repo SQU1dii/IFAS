@@ -27,13 +27,14 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue', 'search'])
 
 const f = reactive({
-  search:        props.modelValue.search        ?? '',
-  type:          props.modelValue.type          ?? '',
-  category_id:   props.modelValue.category_id   ?? '',
-  account_id:    props.modelValue.account_id    ?? '',
-  department_id: props.modelValue.department_id  ?? '',
-  from:          props.modelValue.from          ?? '',
-  to:            props.modelValue.to            ?? '',
+  search:           props.modelValue.search           ?? '',
+  type:             props.modelValue.type             ?? '',
+  category_id:      props.modelValue.category_id      ?? '',
+  account_id:       props.modelValue.account_id       ?? '',
+  department_id:    props.modelValue.department_id    ?? '',
+  from:             props.modelValue.from             ?? '',
+  to:               props.modelValue.to               ?? '',
+  needs_review:     props.modelValue.needs_review     ?? false,  // New: filter for transactions needing review
 })
 
 // Emit on every change so the parent can decide whether to debounce.
@@ -55,7 +56,7 @@ const accountOptions  = props.accounts
   .map((a) => ({ value: a.id, label: a.name }))
 const departmentOptions = props.departments.map((d) => ({ value: d.id, label: d.name }))
 
-const hasFilters = () => f.type || f.category_id || f.account_id || f.department_id || f.from || f.to
+const hasFilters = () => f.type || f.category_id || f.account_id || f.department_id || f.from || f.to || f.needs_review
 </script>
 
 <template>
@@ -112,7 +113,7 @@ const hasFilters = () => f.type || f.category_id || f.account_id || f.department
       />
     </div>
 
-    <!-- Date range row -->
+    <!-- Date range row + Needs Review filter -->
     <div class="flex flex-wrap items-end gap-3">
       <div class="flex items-center gap-2">
         <label class="field-label whitespace-nowrap">From</label>
@@ -122,6 +123,14 @@ const hasFilters = () => f.type || f.category_id || f.account_id || f.department
         <label class="field-label whitespace-nowrap">To</label>
         <input v-model="f.to" type="date" class="input w-auto" aria-label="To date" />
       </div>
+      <!-- Needs Review filter (shows amber badge when active) -->
+      <label class="flex items-center gap-2 cursor-pointer" title="Show transactions flagged for review during import">
+        <input type="checkbox" v-model="f.needs_review" class="rounded border-slate-300 text-amber-600 focus:ring-amber-500" aria-label="Filter transactions needing review" />
+        <span class="text-sm text-slate-600 flex items-center gap-1">
+          <span v-if="f.needs_review" class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700">⚠ Active</span>
+          Needs Review
+        </span>
+      </label>
       <BaseButton v-if="hasFilters()" variant="ghost" size="sm" @click="reset">
         <svg class="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" aria-hidden="true">
           <path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
