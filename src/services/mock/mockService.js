@@ -129,33 +129,54 @@ function cons(wsId) { return getSlice(wsId).contributions }
 
 // ── Auth ────────────────────────────────────────────────────
 
+// Default demo credentials for the pre-seeded user (Amara)
+const DEMO_EMAIL = 'amara.wanjiku@example.com'
+const DEMO_PASSWORD = 'password123'
+
 export async function mockLogin({ email, password }) {
   await delay()
   if (!email || !password) throw { message: 'Email and password are required.', status: 400 }
+
   // Check if this email was registered in this session
   if (_registeredUsers.has(email)) {
     const user = _registeredUsers.get(email)
+    // Verify password for registered users
+    if (user.password !== password) {
+      throw { message: 'Invalid email or password.', status: 401 }
+    }
     _currentUserId = user.id
     _user = { ...user }
-    return { accessToken: 'mock-access-token-' + Date.now(), user: { ...user } }
+    // Don't return password in response
+    const { password: _, ...safeUser } = user
+    return { accessToken: 'mock-access-token-' + Date.now(), user: { ...safeUser } }
   }
-  // Not registered — create a demo user from the email
-  const name = email.split('@')[0].replace(/[._]/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())
-  const user = { ...MOCK_USER, id: 'user-001', name, email }
-  _currentUserId = user.id
-  _user = user
-  return { accessToken: 'mock-access-token-' + Date.now(), user }
+
+  // Allow demo user login with correct credentials
+  if (email === DEMO_EMAIL && password === DEMO_PASSWORD) {
+    const user = { ...MOCK_USER, id: 'user-001', name: 'Amara Wanjiku', email, password: DEMO_PASSWORD }
+    _currentUserId = user.id
+    _user = user
+    _registeredUsers.set(email, user) // Cache for subsequent logins
+    const { password: _, ...safeUser } = user
+    return { accessToken: 'mock-access-token-' + Date.now(), user: { ...safeUser } }
+  }
+
+  // Invalid credentials
+  throw { message: 'Invalid email or password.', status: 401 }
 }
 
 export async function mockRegister({ name, email, password }) {
   await delay()
   if (!name || !email || !password) throw { message: 'All fields are required.', status: 400 }
+  if (_registeredUsers.has(email)) throw { message: 'An account with this email already exists.', status: 409 }
+
   // Create a NEW user with the provided details — don't reuse Amara's identity.
   const userId = 'user-' + Date.now()
   const user = {
     id: userId,
     name,
     email,
+    password, // Store password for login verification
     currency: 'KES',
     date_format: 'DD/MM/YYYY',
     theme: 'light',
@@ -170,7 +191,8 @@ export async function mockRegister({ name, email, password }) {
   _currentUserId = userId
   _user = user
   _registeredUsers.set(email, user)  // Store so login can find this user later
-  return { accessToken: 'mock-access-token-' + Date.now(), user }
+  const { password: _, ...safeUser } = user
+  return { accessToken: 'mock-access-token-' + Date.now(), user: { ...safeUser } }
 }
 
 export async function mockRefreshToken() {
@@ -178,7 +200,9 @@ export async function mockRefreshToken() {
   // Return the CURRENT user, not the default mock user.
   // This prevents a page refresh from overwriting a registered user's
   // profile with Amara Wanjiku's data.
-  return { accessToken: 'mock-access-token-refreshed-' + Date.now(), user: { ..._user } }
+  if (!_user) throw { message: 'No active session.', status: 401 }
+  const { password: _, ...safeUser } = _user
+  return { accessToken: 'mock-access-token-refreshed-' + Date.now(), user: { ...safeUser } }
 }
 
 export async function mockLogout() {
