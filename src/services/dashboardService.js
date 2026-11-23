@@ -47,8 +47,9 @@ export default {
 
 
   async getNotifications() {
-    if (USE_MOCK) return mockGetNotifications()
-    const res = await api.get('/notifications')  // global, not workspace-scoped
+    const id = wsId()
+    if (USE_MOCK) return mockGetNotifications(id)
+    const res = await api.get(`/workspaces/${id}/notifications`)
     return res.data
   },
 

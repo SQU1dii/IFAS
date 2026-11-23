@@ -477,9 +477,38 @@ export async function mockDeleteCategory(id) {
 
 // ── Notifications ────────────────────────────────────────────
 
-export async function mockGetNotifications() {
+export async function mockGetNotifications(wsId = 'ws-personal') {
   await delay(250)
-  return [..._notifications]
+
+  // Only show notifications if the workspace has meaningful data
+  const slice = getSlice(wsId)
+
+  // Check if workspace has any accounts, transactions, budgets, or savings goals
+  const hasAccounts     = slice.accounts.length > 0
+  const hasTransactions = slice.transactions.length > 0
+  const hasBudgets      = slice.budgets.length > 0
+  const hasSavings      = slice.savings.length > 0
+
+  // If no data at all, return empty notifications
+  if (!hasAccounts && !hasTransactions && !hasBudgets && !hasSavings) {
+    return []
+  }
+
+  // Filter notifications based on what data exists in the workspace
+  return _notifications.filter((n) => {
+    switch (n.type) {
+      case 'budget_alert':
+        return hasBudgets && hasTransactions // Budget alerts need budgets + transactions
+      case 'income':
+        return hasTransactions // Income notifications need transactions
+      case 'goal_reminder':
+        return hasSavings // Goal reminders need savings goals
+      case 'insight':
+        return hasTransactions || hasBudgets || hasSavings // Insights need some data
+      default:
+        return true // Show unknown types if any data exists
+    }
+  }).map((n) => ({ ...n }))
 }
 
 export async function mockMarkNotificationRead(id) {
