@@ -108,7 +108,28 @@ let _currentUserId = null
 
 // Store registered users so login can find them by email.
 // Without this, every login resets to user-001 (Amara) and shows Amara's workspaces.
-const _registeredUsers = new Map()  // email → user object
+// Persisted to localStorage so users survive page refresh.
+const REGISTERED_USERS_KEY = 'ifas_registered_users'
+const _registeredUsers = new Map()
+
+function loadRegisteredUsers() {
+  try {
+    const stored = localStorage.getItem(REGISTERED_USERS_KEY)
+    if (stored) {
+      const users = JSON.parse(stored)
+      users.forEach(([email, user]) => _registeredUsers.set(email, user))
+    }
+  } catch { /* ignore */ }
+}
+
+function saveRegisteredUsers() {
+  try {
+    localStorage.setItem(REGISTERED_USERS_KEY, JSON.stringify([..._registeredUsers.entries()]))
+  } catch { /* ignore */ }
+}
+
+// Load on module init
+loadRegisteredUsers()
 
 function nextId(prefix) { return `${prefix}-${++_idSeq}` }
 
@@ -191,6 +212,7 @@ export async function mockRegister({ name, email, password }) {
   _currentUserId = userId
   _user = user
   _registeredUsers.set(email, user)  // Store so login can find this user later
+  saveRegisteredUsers() // Persist to localStorage
   const { password: _, ...safeUser } = user
   return { accessToken: 'mock-access-token-' + Date.now(), user: { ...safeUser } }
 }
@@ -220,6 +242,27 @@ export async function mockResetPassword({ token, password }) {
   await delay()
   if (!token || !password) throw { message: 'Invalid or expired reset token.', status: 400 }
   return { message: 'Password updated. You can now sign in.' }
+}
+
+export async function mockChangePassword({ currentPassword, newPassword }) {
+  await delay()
+  if (!currentPassword || !newPassword) throw { message: 'Current and new password are required.', status: 400 }
+  if (!_user) throw { message: 'Not authenticated.', status: 401 }
+  if (_user.password !== currentPassword) throw { message: 'Current password is incorrect.', status: 401 }
+
+  // Update password in user object
+  _user.password = newPassword
+
+  // Also update in registered users map
+  if (_user.email && _registeredUsers.has(_user.email)) {
+    const user = _registeredUsers.get(_user.email)
+    user.password = newPassword
+    _registeredUsers.set(_user.email, user)
+    saveRegisteredUsers()
+  }
+
+  const { password: _, ...safeUser } = _user
+  return { message: 'Password changed successfully.', user: { ...safeUser } }
 }
 
 // ── Analytics / Dashboard ────────────────────────────────────

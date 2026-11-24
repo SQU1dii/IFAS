@@ -15,6 +15,7 @@ import {
   mockResetPassword,
   mockRefreshToken,
   mockLogout,
+  mockChangePassword,
 } from './mock/mockService'
 import { MOCK_USER } from './mock/mockData'
 
@@ -69,7 +70,7 @@ export default {
   },
 
   async changePassword(payload) {
-    if (USE_MOCK) return { message: 'Password updated.' }
+    if (USE_MOCK) return mockChangePassword(payload)
     const res = await api.patch('/auth/me/password', payload)
     return res.data
   },
