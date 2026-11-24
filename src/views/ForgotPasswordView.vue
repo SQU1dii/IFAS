@@ -5,21 +5,29 @@
  * The success message never confirms whether the email is registered
  * (prevents user-enumeration attacks). The backend enforces this too,
  * but we mirror it on the frontend so the UX is consistent.
+ *
+ * In mock mode (VITE_USE_MOCK=true), the response includes a mock token
+ * that can be used to test the reset password flow by navigating to
+ * /reset-password?token=<mockToken>
  */
 import { ref, reactive, computed } from 'vue'
 import { useAuthStore } from '@/stores/auth'
+import { useRoute, useRouter } from 'vue-router'
 import { runRules, required, isEmail } from '@/utils/validation'
 import BaseButton from '@/components/common/BaseButton.vue'
 import BaseInput  from '@/components/common/BaseInput.vue'
 import BaseAlert  from '@/components/common/BaseAlert.vue'
 
-const auth = useAuthStore()
+const auth   = useAuthStore()
+const router = useRouter()
+const route  = useRoute()
 
 const form       = reactive({ email: '' })
 const touched    = reactive({ email: false })
 const loading    = ref(false)
 const submitted  = ref(false)  // show success state after request
 const apiError   = ref('')
+const mockToken  = ref('')     // mock reset token for testing
 
 const errors = computed(() => ({
   email: runRules(form.email, [
@@ -36,13 +44,23 @@ async function handleSubmit() {
   apiError.value = ''
 
   try {
-    await auth.forgotPassword(form.email)
+    const res = await auth.forgotPassword(form.email)
+    // In mock mode, capture the token for testing
+    if (res?.mockToken) {
+      mockToken.value = res.mockToken
+    }
     submitted.value = true
   } catch (err) {
     // Show a generic message — don't reveal whether the email exists.
     apiError.value = err?.message ?? 'Something went wrong. Please try again.'
   } finally {
     loading.value = false
+  }
+}
+
+function goToResetPassword() {
+  if (mockToken.value) {
+    router.push({ name: 'reset-password', query: { token: mockToken.value } })
   }
 }
 </script>
@@ -80,6 +98,21 @@ async function handleSubmit() {
               <strong class="text-navy-700">{{ form.email }}</strong>,
               we've sent a password reset link. It may take a few minutes to arrive.
             </p>
+
+            <!-- Mock mode: show token and direct link for testing -->
+            <div v-if="mockToken" class="mt-4 p-3 bg-amber-50 border border-amber-200 rounded-lg text-left">
+              <p class="text-xs font-medium text-amber-800 mb-1">Mock mode — test reset flow:</p>
+              <div class="flex gap-2 flex-wrap">
+                <code class="flex-1 min-w-0 px-2 py-1 bg-amber-100 rounded text-xs text-amber-900 break-all font-mono">{{ mockToken }}</code>
+                <BaseButton variant="secondary" size="sm" @click="goToResetPassword">
+                  Open reset page
+                </BaseButton>
+              </div>
+              <p class="mt-2 text-xs text-amber-700">
+                Or manually visit <code class="font-mono">/reset-password?token={{ mockToken }}</code>
+              </p>
+            </div>
+
             <p class="mt-3 text-xs text-slate-400">
               Didn't get it? Check your spam folder, or
               <button

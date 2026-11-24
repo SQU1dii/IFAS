@@ -112,6 +112,9 @@ let _currentUserId = null
 const REGISTERED_USERS_KEY = 'ifas_registered_users'
 const _registeredUsers = new Map()
 
+// Store password reset tokens (mock) — keyed by email
+const _resetTokens = new Map()
+
 function loadRegisteredUsers() {
   try {
     const stored = localStorage.getItem(REGISTERED_USERS_KEY)
@@ -235,12 +238,53 @@ export async function mockLogout() {
 
 export async function mockForgotPassword(email) {
   await delay()
-  return { message: 'If an account exists for that email, a reset link has been sent.' }
+  // Generate a mock reset token for testing
+  const token = 'mock-reset-token-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8)
+  _resetTokens.set(email.toLowerCase(), { token, expires: Date.now() + 3600000 }) // 1 hour
+  // In real app, this would be sent via email. In mock, we return it for testing.
+  return {
+    message: 'If an account exists for that email, a reset link has been sent.',
+    mockToken: token // Only in mock mode for testing
+  }
 }
 
 export async function mockResetPassword({ token, password }) {
   await delay()
   if (!token || !password) throw { message: 'Invalid or expired reset token.', status: 400 }
+
+  // Find the email associated with this token
+  let foundEmail = null
+  for (const [email, data] of _resetTokens.entries()) {
+    if (data.token === token) {
+      if (data.expires < Date.now()) {
+        _resetTokens.delete(email)
+        throw { message: 'Reset token has expired. Please request a new one.', status: 400 }
+      }
+      foundEmail = email
+      break
+    }
+  }
+
+  if (!foundEmail) {
+    throw { message: 'Invalid or expired reset token.', status: 400 }
+  }
+
+  // Update password for the registered user
+  if (_registeredUsers.has(foundEmail)) {
+    const user = _registeredUsers.get(foundEmail)
+    user.password = password
+    _registeredUsers.set(foundEmail, user)
+    saveRegisteredUsers()
+
+    // Also update current user if it's the same
+    if (_user && _user.email === foundEmail) {
+      _user.password = password
+    }
+  }
+
+  // Clean up token
+  _resetTokens.delete(foundEmail)
+
   return { message: 'Password updated. You can now sign in.' }
 }
 
@@ -1400,6 +1444,7 @@ export async function mockCreateWorkspace(payload) {
     type: payload.type,
     currency: payload.currency ?? 'KES',
     created_at: new Date().toISOString().slice(0, 10),
+    owner_id: _currentUserId,
     my_role: 'owner',
     my_permissions: [
       'transactions.read', 'transactions.write', 'transactions.void',
