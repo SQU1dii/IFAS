@@ -15,8 +15,10 @@ import { useUiStore } from '@/stores/ui'
 import TheSidebar from './TheSidebar.vue'
 import TheTopbar from './TheTopbar.vue'
 import MockDataBanner from '@/components/common/MockDataBanner.vue'
+import { useWorkspaceStore } from '@/stores/workspace'
 
 const ui = useUiStore()
+const ws = useWorkspaceStore()
 const route = useRoute()
 
 // Close the mobile drawer on navigation.
@@ -54,9 +56,10 @@ watch(() => route.path, () => {
       <!-- Topbar -->
       <TheTopbar />
 
-      <!-- Page content -->
+      <!-- Page content — keyed by workspace ID so the view fully re-mounts
+           when the user switches workspaces (guarantees the right dashboard type) -->
       <main class="flex-1 p-4 sm:p-6 lg:p-8 animate-fade-in">
-        <RouterView />
+        <RouterView :key="ws.wsId" />
       </main>
     </div>
   </div>

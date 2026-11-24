@@ -12,7 +12,7 @@
  * accounts    Account[]   – from /accounts (active only)
  * hidetype    Boolean     – hide the type selector (Income / Expenses views)
  */
-import { reactive, watch } from 'vue'
+import { reactive, watch, computed } from 'vue'
 import BaseInput  from '@/components/common/BaseInput.vue'
 import BaseSelect from '@/components/common/BaseSelect.vue'
 import BaseButton from '@/components/common/BaseButton.vue'
@@ -50,11 +50,13 @@ const typeOptions = [
   { value: 'transfer', label: 'Transfer' },
 ]
 
-const categoryOptions = props.categories.map((c) => ({ value: c.id, label: c.name }))
-const accountOptions  = props.accounts
-  .filter((a) => a.is_active !== false)
-  .map((a) => ({ value: a.id, label: a.name }))
-const departmentOptions = props.departments.map((d) => ({ value: d.id, label: d.name }))
+const categoryOptions   = computed(() => props.categories.map((c) => ({ value: c.id, label: c.name })))
+const accountOptions    = computed(() =>
+  props.accounts
+    .filter((a) => a.is_active !== false)
+    .map((a) => ({ value: a.id, label: a.name }))
+)
+const departmentOptions = computed(() => props.departments.map((d) => ({ value: d.id, label: d.name })))
 
 const hasFilters = () => f.type || f.category_id || f.account_id || f.department_id || f.from || f.to || f.needs_review
 </script>

@@ -43,13 +43,15 @@ async function loadReference() {
       categoryService.list(),
       accountService.list(),
     ])
-    categories.value = cats
-    accounts.value   = accs
+    categories.value = cats ?? []
+    accounts.value   = accs ?? []
     // Load departments for org workspaces only
     if (ws.isOrganization) {
       departments.value = await workspaceService.listDepartments(ws.wsId)
     }
-  } catch { /* non-critical — selects will be empty */ }
+  } catch (e) {
+    console.warn('[TransactionsView] loadReference error:', e?.message ?? e)
+  }
 }
 
 // ── Filter state ──────────────────────────────────────────
