@@ -1,180 +1,278 @@
 # IFAS — Intelligent Financial Analytics System (Frontend)
 
-A multi-workspace personal, business, and organization finance platform built with Vue 3, Vite, Pinia, Vue Router, Tailwind CSS, Chart.js, and Axios.
+A multi-workspace personal, business, and organisation finance platform built for the Kenyan market. Supports M-Pesa PDF statement imports, automated transaction categorisation, spending forecasts, anomaly detection, and an AI financial assistant.
 
-## Quick start
+---
+
+## Tech Stack
+
+| Layer | Choice |
+|---|---|
+| Framework | Vue 3 (Composition API, `<script setup>`) |
+| Build tool | Vite 5 |
+| State | Pinia 2 |
+| Routing | Vue Router 4 |
+| Styling | Tailwind CSS 3 |
+| Charts | Chart.js 4 + vue-chartjs 5 |
+| HTTP | Axios 1 |
+| PDF parsing | pdfjs-dist 4 (browser-side, M-Pesa PDF import) |
+
+---
+
+## Prerequisites
+
+- Node.js ≥ 18
+- npm ≥ 9
+- Backend API running at `http://localhost:4000` (or use mock mode)
+
+---
+
+## Quick Start
 
 ```bash
 # 1. Install dependencies
 npm install
 
-# 2. Copy the env template
-cp .env.example .env
-
-# 3. Run the dev server (mock data, no backend needed)
+# 2. Create your environment file
+#    Copy the variables below into a new file called .env
 npm run dev
-
-# 4. Build for production
-npm run build
-
-# 5. Preview the production build
-npm run preview
 ```
 
-The app runs at `http://localhost:5173`. In mock mode (`VITE_USE_MOCK=true`), all data comes from the in-memory mock layer — no backend required.
+### Environment variables (create a `.env` file)
 
-## Environment variables
+```env
+# Backend API base URL
+VITE_API_URL=http://localhost:4000/api/v1
 
-| Variable | Default | Description |
-|---|---|---|
-| `VITE_API_URL` | `http://localhost:5000/api/v1` | Backend REST API base URL |
-| `VITE_USE_MOCK` | `true` | Set to `false` to use the real backend |
-| `VITE_DEFAULT_CURRENCY` | `KES` | Default currency for formatting |
+# Set to true to run entirely in the browser without the backend.
+# Set to false when your Express backend is running on port 4000.
+VITE_USE_MOCK=true
 
-## Connecting to the backend
-
-1. Ensure your Express backend is running at the URL specified in `VITE_API_URL`.
-2. Set `VITE_USE_MOCK=false` in `.env`.
-3. All API calls automatically switch from the mock service layer to the real Axios client.
-4. The Axios instance sends the Bearer access token (in-memory) and the active workspace ID in the path (`/workspaces/:id/...`).
-
-### Auth flow
-
-- Access token is kept in memory (never localStorage).
-- A short-lived access token is returned in the login response body.
-- A long-lived refresh token is set as an HttpOnly cookie by the backend.
-- On app load, `POST /auth/refresh` is called to restore the session.
-- On 401, the interceptor calls `/auth/refresh` once, retries the original request, and logs out if refresh fails.
-
-### Response format
-
-The backend returns:
-```json
-{ "success": true, "message": "...", "data": {...}, "meta": {...} }
-```
-The Axios interceptor unwraps this so service callers receive `res.data` directly.
-
-Errors return:
-```json
-{ "error": { "code": "VALIDATION_ERROR", "message": "...", "fields": { "email": "Already taken" } } }
-```
-The error normalizer maps `fields` onto `err.fieldErrors` so forms can display them inline.
-
-## Folder structure
-
-```
-src/
-├── assets/
-│   └── main.css                 # Tailwind base + design system component classes
-├── components/
-│   ├── common/                  # BaseButton, BaseInput, BaseSelect, BaseCard, BaseAlert,
-│   │                            # BaseBadge, BaseProgress, BaseSpinner, EmptyState,
-│   │                            # LoadingOverlay, PageHeader, MockDataBanner
-│   ├── layout/                   # AppLayout, TheSidebar, TheTopbar, SidebarInner, ComingSoonView
-│   ├── dashboard/               # SummaryCard, RecentTransactions, BudgetUtilization,
-│   │                            # SavingsOverview, InsightsPanel
-│   ├── transactions/            # TransactionFilterBar, TransactionTable, TransactionModal,
-│   │                            # DeleteConfirmModal, CsvImportWizard
-│   └── charts/                   # IncomeExpenseChart, SpendingByCategoryChart,
-│                                # NetCashFlowChart, TrendLineChart
-├── views/
-│   ├── LoginView.vue            # F1
-│   ├── RegisterView.vue         # F1
-│   ├── ForgotPasswordView.vue   # F1
-│   ├── ResetPasswordView.vue    # F1
-│   ├── WorkspaceSelectionView.vue # F2
-│   ├── DashboardView.vue        # Dispatcher → F3/F4/F5 by workspace type
-│   ├── PersonalDashboardView.vue # F3
-│   ├── BusinessDashboardView.vue # F4
-│   ├── OrgDashboardView.vue     # F5
-│   ├── TransactionsView.vue     # F6
-│   ├── IncomeView.vue           # F6 (type-locked)
-│   ├── ExpensesView.vue         # F6 (type-locked)
-│   ├── IntelligenceView.vue     # F7
-│   ├── AssistantView.vue        # F8
-│   ├── AccountsView.vue         # Simple page
-│   ├── CategoriesView.vue       # Simple page
-│   ├── BudgetsView.vue          # Simple page
-│   ├── SavingsView.vue          # Simple page (personal only)
-│   ├── MembersView.vue          # Simple page (business + org)
-│   ├── DepartmentsView.vue      # Simple page (org only)
-│   ├── AnalyticsView.vue        # Charts
-│   ├── ReportsView.vue          # Export + print
-│   ├── SettingsView.vue         # Preferences
-│   └── NotPermittedView.vue     # RBAC denied page
-├── router/
-│   └── index.js                 # Routes + 5-step guard (guest/auth/workspace/type/permission)
-├── stores/
-│   ├── auth.js                  # Token + user session (in-memory token, restoreSession)
-│   ├── workspace.js             # Active workspace, type, role, permissions, can()
-│   ├── ui.js                    # Sidebar state, date range, notifications
-│   └── assistant.js             # AI chat session state
-├── services/
-│   ├── api.js                   # Axios instance, tokenStore, 401 refresh mutex, error normalizer
-│   ├── authService.js           # /auth/* (global, not workspace-scoped)
-│   ├── workspaceService.js      # /workspaces, members, departments, alerts, dashboard, assistant
-│   ├── transactionService.js    # /workspaces/:id/transactions (+ void, CSV import)
-│   ├── accountService.js        # /workspaces/:id/accounts
-│   ├── budgetService.js         # /workspaces/:id/budgets
-│   ├── savingsService.js        # /workspaces/:id/savings-goals (+ contributions)
-│   ├── analyticsService.js      # /workspaces/:id/analytics/*
-│   ├── reportsService.js        # /workspaces/:id/reports (+ CSV export)
-│   ├── intelligenceService.js   # /workspaces/:id/forecast, alerts, recommendations
-│   ├── dashboardService.js      # /workspaces/:id/dashboard
-│   └── mock/
-│       ├── mockData.js          # Seeded PRNG data (accounts, categories, transactions,
-│       │                        # budgets, savings, contributions, notifications, workspaces,
-│       │                        # members, departments, alerts, recommendations)
-│       └── mockService.js       # All mock async functions (simulates the full backend)
-├── composables/
-│   ├── useDateRange.js          # Reactive date-range selection
-│   └── useTransactionPage.js   # Shared logic for Income/Expenses views
-├── utils/
-│   ├── format.js                # formatCurrency (KES/en-KE), formatDate, formatPercent
-│   ├── validation.js            # runRules, required, isEmail, minLength, isPositiveNumber
-│   └── date.js                  # Range presets, resolvePreset, previousRange, rangeToIso
-├── App.vue                      # Root — single RouterView
-└── main.js                      # Bootstrap: restoreSession() → restore() → mount()
+# Default currency for formatting
+VITE_DEFAULT_CURRENCY=KES
 ```
 
-## Workspace system
+> **Note:** `.env` is intentionally excluded from this repository. Create it locally — never commit secrets or personal credentials to git.
 
-Users belong to one or more workspaces. Three types:
+---
 
-- **PERSONAL** — individual finance (income, expenses, budgets, savings goals)
-- **BUSINESS** — company finance (net profit, team access, budgets)
-- **ORGANIZATION** — multi-department budgets, roles, spending oversight
+## Demo Mode (no backend required)
 
-Everything is scoped to the active workspace. The sidebar, dashboard, and available pages change based on workspace type and the user's role/permissions.
+With `VITE_USE_MOCK=true` the app runs entirely in the browser using an in-memory mock service. No backend, no database, no network calls.
 
-## RBAC
+**Pre-seeded demo account:**
+- Email: `amara.wanjiku@example.com`
+- Password: `password123`
 
-The server returns permission codes per workspace. The frontend hides what's not permitted:
+This account has three workspaces pre-loaded with 7 months of realistic Kenyan financial data (Equity Bank, M-Pesa, KCB, salary, groceries, transport, NHIF, NSSF, Chama contributions, and more).
 
-- Router checks `meta.permission` and redirects to `/not-permitted` if denied
-- Sidebar filters nav items by `ws.can(permission)` and `wsTypes`
-- Edit/delete/void buttons are gated by `ws.can('transactions.write')` etc.
+You can also register a new account with any email and password — it will start with an empty workspace.
 
-Permission codes: `transactions.read`, `transactions.write`, `transactions.void`, `budgets.read`, `budgets.write`, `members.read`, `members.write`, `departments.read`, `departments.write`, `reports.read`, `settings.write`.
+---
 
-## Mock mode
+## Connecting to the Real Backend
 
-When `VITE_USE_MOCK=true`, all service calls go to the mock layer in `src/services/mock/`. The mock data is seeded with a deterministic PRNG so it's stable across reloads. Mutations (create/update/delete) persist in memory for the tab session but reset on page refresh.
+1. Start the Express backend (`npm run dev` in the Back End folder)
+2. Change your `.env`: `VITE_USE_MOCK=false`
+3. Restart the frontend dev server (`Ctrl+C` then `npm run dev`)
+4. Register a new account — it will be stored in MySQL
 
-## Scripts
+---
+
+## Available Scripts
 
 | Command | Description |
 |---|---|
-| `npm run dev` | Start Vite dev server with HMR |
+| `npm run dev` | Start dev server with hot-module replacement |
 | `npm run build` | Production build to `dist/` |
-| `npm run preview` | Preview the production build locally |
+| `npm run preview` | Serve the production build locally |
 
-## Tech stack
+---
 
-- Vue 3 (Composition API, `<script setup>`)
-- Vite 5
-- Pinia 2
-- Vue Router 4
-- Tailwind CSS 3
-- Chart.js 4 + vue-chartjs 5
-- Axios 1
+## Project Structure
+
+```
+src/
+├── main.js                      # App entry — restoreSession() → restore() → mount()
+├── App.vue                      # Root — single RouterView + page transitions
+│
+├── router/
+│   └── index.js                 # All routes + 4-step guard (auth/workspace/type/permission)
+│
+├── stores/
+│   ├── auth.js                  # Authenticated session (in-memory token, HttpOnly cookie)
+│   ├── workspace.js             # Active workspace, role, permissions, can()
+│   ├── ui.js                    # Sidebar state, date range preset, notifications
+│   └── assistant.js             # AI chat session per workspace
+│
+├── views/
+│   ├── LoginView.vue            # Email + password login
+│   ├── RegisterView.vue         # 2-step: personal details → workspace type + name
+│   ├── ForgotPasswordView.vue   # Request password reset link
+│   ├── ResetPasswordView.vue    # Set new password from token
+│   ├── WorkspaceSelectionView.vue # Pick or create a workspace
+│   ├── DashboardView.vue        # Dispatcher → Personal / Business / Org dashboard
+│   ├── PersonalDashboardView.vue  # F3: summary cards, charts, budgets, savings, insights
+│   ├── BusinessDashboardView.vue  # F4: revenue, P&L, team alerts
+│   ├── OrgDashboardView.vue       # F5: department budgets, members panel
+│   ├── TransactionsView.vue     # Full CRUD + void + CSV import + M-Pesa PDF import
+│   ├── IncomeView.vue           # Transactions locked to type=income
+│   ├── ExpensesView.vue         # Transactions locked to type=expense
+│   ├── AccountsView.vue         # BANK / MOBILE_MONEY / CASH accounts
+│   ├── CategoriesView.vue       # INCOME and EXPENSE categories
+│   ├── BudgetsView.vue          # Monthly/yearly budgets with utilization
+│   ├── SavingsView.vue          # Savings goals + contributions (Personal only)
+│   ├── AnalyticsView.vue        # 5 chart sections: income/expense, cash flow,
+│   │                            # categories, budget performance, savings trends
+│   ├── ReportsView.vue          # Period summary + full transaction list + export
+│   ├── IntelligenceView.vue     # Spending patterns, anomalies, forecast, recommendations
+│   ├── AssistantView.vue        # AI financial assistant chat
+│   ├── MembersView.vue          # Member management (Business + Org)
+│   ├── DepartmentsView.vue      # Department management (Org only)
+│   ├── ProfileView.vue          # Edit name/email/phone + change password
+│   ├── SettingsView.vue         # Display + notification preferences
+│   └── NotPermittedView.vue     # Shown when RBAC blocks a route
+│
+├── components/
+│   ├── common/
+│   │   ├── BaseButton.vue       # primary/secondary/danger/ghost variants, loading state
+│   │   ├── BaseInput.vue        # Labelled input with error + hint
+│   │   ├── BaseSelect.vue       # Labelled select with error + hint
+│   │   ├── BaseCard.vue         # White rounded card
+│   │   ├── BaseAlert.vue        # success/error/warning/info, dismissible
+│   │   ├── BaseBadge.vue        # Colour pill: green/red/blue/amber/purple/neutral
+│   │   ├── BaseProgress.vue     # Horizontal progress bar with colour thresholds
+│   │   ├── BaseSpinner.vue      # Loading animation
+│   │   ├── EmptyState.vue       # Icon + title + message for empty lists
+│   │   ├── PageHeader.vue       # Page title + subtitle + actions slot
+│   │   └── MockDataBanner.vue   # Amber banner in demo mode (dismissible)
+│   │
+│   ├── layout/
+│   │   ├── AppLayout.vue        # Authenticated shell: sidebar + topbar + RouterView
+│   │   ├── TheSidebar.vue       # Collapsible sidebar with mobile overlay
+│   │   ├── SidebarInner.vue     # Nav items filtered by workspace type + permissions
+│   │   └── TheTopbar.vue        # Date picker, notification bell, profile dropdown
+│   │
+│   ├── dashboard/
+│   │   ├── SummaryCard.vue      # KPI card with trend indicator
+│   │   ├── BudgetUtilization.vue # Progress bars + status badges
+│   │   ├── SavingsOverview.vue  # Compact goal cards with circular progress
+│   │   ├── RecentTransactions.vue # Last 6 transactions
+│   │   └── InsightsPanel.vue    # AI-generated insight cards
+│   │
+│   ├── transactions/
+│   │   ├── TransactionModal.vue      # Add/edit with full field validation
+│   │   ├── TransactionTable.vue      # Paginated table with action menu
+│   │   ├── TransactionFilterBar.vue  # Search, type, category, account, date, needs-review
+│   │   ├── DeleteConfirmModal.vue    # Reusable danger confirm dialog
+│   │   ├── CsvImportWizard.vue       # 3-step CSV import with proper quoted-field parser
+│   │   ├── CsvColumnMappingWizard.vue # Map arbitrary bank CSV headers to IFAS fields
+│   │   └── MpesaImportWizard.vue     # 4-step M-Pesa PDF import (browser-side decryption)
+│   │
+│   └── charts/
+│       ├── IncomeExpenseChart.vue       # Grouped bar
+│       ├── SpendingByCategoryChart.vue  # Doughnut
+│       ├── NetCashFlowChart.vue         # Line
+│       └── TrendLineChart.vue           # Line with area fill + forecast dashes
+│
+├── composables/
+│   └── useTransactionPage.js    # Shared filter/pagination/CRUD logic for transaction views
+│
+├── services/
+│   ├── api.js                   # Axios instance, tokenStore, 401 refresh interceptor
+│   ├── authService.js           # /auth/* endpoints
+│   ├── workspaceService.js      # /workspaces, members, departments, assistant
+│   ├── transactionService.js    # /transactions, /imports
+│   ├── accountService.js        # /accounts
+│   ├── categoryService.js       # /categories
+│   ├── budgetService.js         # /budgets
+│   ├── savingsService.js        # /savings-goals + contributions
+│   ├── analyticsService.js      # /analytics/*
+│   ├── reportsService.js        # /reports
+│   ├── intelligenceService.js   # /insights, /forecast, /anomalies, /patterns, /alerts
+│   ├── dashboardService.js      # /dashboard, /notifications
+│   └── mock/
+│       ├── mockData.js          # Seeded demo data (7 months, Kenyan context)
+│       └── mockService.js       # Full in-memory API simulation (~1,500 lines)
+│
+└── utils/
+    ├── format.js                # formatCurrency (KES/en-KE), formatDate, formatPercent
+    ├── date.js                  # Range presets, resolvePreset, rangeToIso
+    ├── validation.js            # runRules, required, isEmail, minLength, etc.
+    └── mpesaParser.js           # M-Pesa PDF text extraction + 3-strategy row parser
+```
+
+---
+
+## Workspace System
+
+A user can belong to multiple workspaces simultaneously. Three types:
+
+| Type | Purpose | Unique features |
+|---|---|---|
+| **PERSONAL** | Individual finances | Savings goals, personal categories |
+| **BUSINESS** | Company finances | P&L, team members with roles |
+| **ORGANIZATION** | NGO / institution | Departments, department-level budgets |
+
+The active workspace controls which dashboard renders, which sidebar items appear, and which actions are permitted.
+
+---
+
+## Permission System
+
+The backend returns a list of permission codes when a workspace is loaded. The frontend uses these to gate routes, sidebar items, and UI buttons.
+
+```
+dashboard.view     transactions.view  transactions.create  transactions.edit
+transactions.import  accounts.manage  budgets.manage  goals.manage
+analytics.view  reports.generate  members.manage  departments.manage
+assistant.use  workspace.manage
+```
+
+Owners and admins always have full access as a safety net. The backend enforces the same permissions independently — hiding buttons in Vue is UI polish, not the security boundary.
+
+---
+
+## M-Pesa PDF Import
+
+Safaricom M-Pesa statements are password-protected PDFs. IFAS imports them in 4 steps:
+
+1. **Upload** — select the PDF, enter your ID/Passport number as the password
+2. **Parsing** — `pdfjs-dist` decrypts the PDF *in the browser* (password never sent to server), groups text items by Y position to reconstruct the visual table, then parses transactions using three fallback strategies
+3. **Preview** — review every transaction, change type/category, assign to an account
+4. **Import** — confirmed transactions are inserted into the active workspace
+
+Auto-categorisation uses 15 keyword rules (airtime, groceries, KPLC, Naivas, Uber, NHIF, school fees, subscriptions, etc.). Unknown transactions are flagged `Needs Review` and can be filtered and classified later.
+
+---
+
+## Authentication Flow
+
+```
+Register / Login
+      ↓
+Backend returns accessToken (body) + sets HttpOnly refresh cookie
+      ↓
+Frontend stores accessToken in memory (tokenStore — never localStorage)
+      ↓
+Every request: Authorization: Bearer <accessToken>
+      ↓
+Token expires (15 min) → 401
+      ↓
+Interceptor calls POST /auth/refresh (sends HttpOnly cookie)
+      ↓
+New accessToken returned → original request retried
+      ↓
+If refresh also fails → session-expired event → logout
+```
+
+---
+
+## Security Notes
+
+- Access token stored in memory only — never in localStorage or a cookie
+- Refresh token is HttpOnly — JavaScript cannot read it
+- M-Pesa PDF password never sent to any server — decrypted client-side
+- All API calls are workspace-scoped — `/workspaces/:id/...`
+- Passwords are never returned in API responses (stripped before sending)
+- The backend enforces all permission checks independently of the frontend
