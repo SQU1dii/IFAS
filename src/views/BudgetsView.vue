@@ -18,7 +18,7 @@
  *
  * Planned vs actual section shows a comparison table at the bottom.
  */
-import { ref, computed, onMounted, reactive } from 'vue'
+import { ref, computed, onMounted, reactive, watch } from 'vue'
 import budgetService   from '@/services/budgetService'
 import categoryService from '@/services/categoryService'
 import { formatCurrency, formatPercent } from '@/utils/format'
@@ -36,6 +36,10 @@ import BaseSpinner        from '@/components/common/BaseSpinner.vue'
 import EmptyState         from '@/components/common/EmptyState.vue'
 import DeleteConfirmModal from '@/components/transactions/DeleteConfirmModal.vue'
 
+import { useUiStore } from '@/stores/ui'
+
+const uiStore = useUiStore()
+
 // ── Reference data ─────────────────────────────────────────
 const categories = ref([])
 onMounted(async () => {
@@ -43,6 +47,11 @@ onMounted(async () => {
     const all = await categoryService.list()
     categories.value = all.filter((c) => c.type === 'expense')
   } catch { /* non-critical */ }
+  load()
+})
+
+// Watch for budget refresh trigger from transactions changes
+watch(() => uiStore.budgetRefreshTrigger, () => {
   load()
 })
 

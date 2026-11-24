@@ -28,9 +28,11 @@ import MpesaImportWizard    from '@/components/transactions/MpesaImportWizard.vu
 
 import { useWorkspaceStore } from '@/stores/workspace'
 import workspaceService from '@/services/workspaceService'
+import { useUiStore } from '@/stores/ui'
 
 // ── Reference data ────────────────────────────────────────
 const ws          = useWorkspaceStore()
+const uiStore     = useUiStore()
 const categories  = ref([])
 const accounts    = ref([])
 const departments = ref([])
@@ -123,6 +125,7 @@ async function handleSave(payload) {
     }
     closeModal()
     load()
+    uiStore.triggerBudgetRefresh()
   } catch (err) {
     modalApiError.value  = err?.message ?? 'Save failed.'
     modalFieldErrs.value = err?.fieldErrors ?? {}
@@ -146,6 +149,7 @@ async function handleDelete() {
     await transactionService.remove(deleteTarget.value.id)
     closeDelete()
     load()
+    uiStore.triggerBudgetRefresh()
   } catch (err) {
     deleteError.value = err?.message ?? 'Delete failed.'
   } finally {
@@ -162,6 +166,7 @@ function onImportDone() {
   showMpesaWizard.value = false
   page.value = 1
   load()
+  uiStore.triggerBudgetRefresh()
 }
 
 // ── Void transaction ──────────────────────────────────────
@@ -178,6 +183,7 @@ async function handleVoid() {
     await transactionService.void(voidTarget.value.id)
     closeVoid()
     load()
+    uiStore.triggerBudgetRefresh()
   } catch (err) {
     voidError.value = err?.message ?? 'Void failed.'
   } finally { voidLoading.value = false }

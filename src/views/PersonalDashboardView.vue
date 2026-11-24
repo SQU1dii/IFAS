@@ -61,6 +61,9 @@ onMounted(fetchDashboard)
 watch(() => ui.rangePreset, fetchDashboard)
 watch(() => ui.customRange, fetchDashboard, { deep: true })
 
+// Watch for budget refresh trigger from transactions changes
+watch(() => ui.budgetRefreshTrigger, fetchDashboard)
+
 const summary = computed(() => data.value?.summary ?? null)
 
 const netLabel = computed(() => {

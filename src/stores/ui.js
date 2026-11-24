@@ -18,6 +18,9 @@ export const useUiStore = defineStore('ui', () => {
   const notifications = ref([])
   const notifLoading  = ref(false)
 
+  // Budget refresh trigger — incremented when transactions change
+  const budgetRefreshTrigger = ref(0)
+
   const unreadCount = computed(() => notifications.value.filter((n) => !n.is_read).length)
 
   // ── Sidebar ───────────────────────────────────────────────
@@ -53,13 +56,20 @@ export const useUiStore = defineStore('ui', () => {
     notifications.value.forEach((n) => (n.is_read = true))
   }
 
+  // ── Cross-component refresh signals ───────────────────────
+  function triggerBudgetRefresh() {
+    budgetRefreshTrigger.value++
+  }
+
   return {
     sidebarCollapsed, mobileMenuOpen,
     rangePreset, customRange,
     notifications, notifLoading, unreadCount,
+    budgetRefreshTrigger,
     toggleSidebar, setSidebarCollapsed,
     openMobileMenu, closeMobileMenu, toggleMobileMenu,
     setRangePreset, setCustomRange,
     loadNotifications, markRead, markAllRead,
+    triggerBudgetRefresh,
   }
 })
