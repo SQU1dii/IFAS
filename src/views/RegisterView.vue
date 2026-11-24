@@ -14,7 +14,7 @@
  * A new workspace created here starts completely empty.
  * Password is never stored beyond this form scope.
  */
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter }         from 'vue-router'
 import { useAuthStore }      from '@/stores/auth'
 import { useWorkspaceStore } from '@/stores/workspace'
@@ -26,6 +26,14 @@ import BaseAlert  from '@/components/common/BaseAlert.vue'
 const router = useRouter()
 const auth   = useAuthStore()
 const ws     = useWorkspaceStore()
+
+// If user is already logged in, log them out so they can create a new account
+onMounted(() => {
+  if (auth.isLoggedIn) {
+    auth.logout()
+    ws.clear()
+  }
+})
 
 // ── Two-step flow ──────────────────────────────────────────
 // step 1 = personal details, step 2 = workspace setup

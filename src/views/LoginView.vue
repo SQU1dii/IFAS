@@ -9,10 +9,12 @@
  * - No passwords are logged, stored beyond the form scope, or sent anywhere
  *   other than the auth service.
  * - Redirects to the original destination after login (via ?redirect= query).
+ * - After login, auto-loads workspaces and activates the first one if only one exists.
  */
 import { ref, reactive, computed } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { useWorkspaceStore } from '@/stores/workspace'
 import { runRules, required, isEmail, minLength } from '@/utils/validation'
 import BaseButton from '@/components/common/BaseButton.vue'
 import BaseInput  from '@/components/common/BaseInput.vue'
@@ -21,6 +23,7 @@ import BaseAlert  from '@/components/common/BaseAlert.vue'
 const router  = useRouter()
 const route   = useRoute()
 const auth    = useAuthStore()
+const ws      = useWorkspaceStore()
 
 // ── Form state ───────────────────────────────────────────
 const form = reactive({ email: '', password: '' })
@@ -55,6 +58,13 @@ async function handleSubmit() {
 
   try {
     await auth.login({ email: form.email, password: form.password })
+
+    // After login, load workspaces and auto-activate if only one exists
+    await ws.loadWorkspaces()
+    if (ws.workspaces.length === 1) {
+      await ws.activate(ws.workspaces[0].id)
+    }
+
     const redirect = route.query.redirect
     router.push(typeof redirect === 'string' && redirect.startsWith('/') ? redirect : { name: 'dashboard' })
   } catch (err) {
@@ -182,7 +192,7 @@ const sessionExpired = computed(() => route.query.expired === '1')
           to="/register"
           class="font-medium text-emerald-600 hover:text-emerald-700 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/60 rounded"
         >
-          Create one free
+          Create account
         </RouterLink>
       </p>
     </div>
