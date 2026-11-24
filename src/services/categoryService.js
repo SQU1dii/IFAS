@@ -25,10 +25,11 @@ function wsPath(path = '') {
   const ws = useWorkspaceStore()
   return `/workspaces/${ws.wsId}${path}`
 }
+function wsId() { return useWorkspaceStore().wsId ?? 'ws-personal' }
 
 export default {
   async list() {
-    if (USE_MOCK) return mockGetCategories()
+    if (USE_MOCK) return mockGetCategories(wsId())
     const res = await api.get(wsPath('/categories'))
     return res.data
   },
