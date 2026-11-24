@@ -59,14 +59,21 @@ async function handleSubmit() {
   try {
     await auth.login({ email: form.email, password: form.password })
 
-    // After login, load workspaces and auto-activate if only one exists
+    // Load workspaces for this user
     await ws.loadWorkspaces()
-    if (ws.workspaces.length === 1) {
-      await ws.activate(ws.workspaces[0].id)
-    }
 
-    const redirect = route.query.redirect
-    router.push(typeof redirect === 'string' && redirect.startsWith('/') ? redirect : { name: 'dashboard' })
+    if (ws.workspaces.length === 0) {
+      // No workspaces yet — send to workspace selection to create one
+      router.push({ name: 'workspaces' })
+    } else if (ws.workspaces.length === 1) {
+      // Only one workspace — activate it and go straight to dashboard
+      await ws.activate(ws.workspaces[0].id)
+      const redirect = route.query.redirect
+      router.push(typeof redirect === 'string' && redirect.startsWith('/') ? redirect : { name: 'dashboard' })
+    } else {
+      // Multiple workspaces — let the user pick
+      router.push({ name: 'workspaces' })
+    }
   } catch (err) {
     apiError.value = err?.message ?? 'Sign in failed. Please try again.'
   } finally {

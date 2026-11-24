@@ -169,11 +169,11 @@ async function handleSubmit() {
     await ws.activate(newWs.id)
     router.push({ name: 'dashboard' })
   } catch (err) {
-    apiError.value = err?.message ?? 'Registration failed. Please try again.'
-    // If registration succeeded but workspace creation failed, roll back to step 1
-    // so the user can try again (backend will reject duplicate email).
     if (auth.isLoggedIn) {
-      apiError.value = 'Account created but workspace setup failed. Please try again or sign in.'
+      // Registration succeeded but workspace failed — go to workspace selection
+      router.push({ name: 'workspaces' })
+    } else {
+      apiError.value = err?.message ?? 'Registration failed. Please try again.'
     }
   } finally {
     loading.value = false

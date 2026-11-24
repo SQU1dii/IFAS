@@ -107,21 +107,18 @@ let _contributions = MOCK_CONTRIBUTIONS.map((c) => ({ ...c }))
 let _currentUserId = null
 
 // Store registered users so login can find them by email.
-// Without this, every login resets to user-001 (Amara) and shows Amara's workspaces.
 // Persisted to localStorage so users survive page refresh.
-const REGISTERED_USERS_KEY = 'ifas_registered_users'
+const REGISTERED_USERS_KEY      = 'ifas_registered_users'
+const REGISTERED_WORKSPACES_KEY = 'ifas_registered_workspaces'
 const _registeredUsers = new Map()
 
-// Store password reset tokens (mock) — keyed by email
+// Store password reset tokens (mock) — keyed by email (lowercase)
 const _resetTokens = new Map()
 
 function loadRegisteredUsers() {
   try {
     const stored = localStorage.getItem(REGISTERED_USERS_KEY)
-    if (stored) {
-      const users = JSON.parse(stored)
-      users.forEach(([email, user]) => _registeredUsers.set(email, user))
-    }
+    if (stored) JSON.parse(stored).forEach(([email, user]) => _registeredUsers.set(email, user))
   } catch { /* ignore */ }
 }
 
@@ -131,8 +128,33 @@ function saveRegisteredUsers() {
   } catch { /* ignore */ }
 }
 
+// Also persist user-created workspaces so they survive page refresh.
+function loadPersistedWorkspaces() {
+  try {
+    const stored = localStorage.getItem(REGISTERED_WORKSPACES_KEY)
+    if (stored) {
+      JSON.parse(stored).forEach((ws) => {
+        if (!_workspaces.find((w) => w.id === ws.id)) {
+          _workspaces.push(ws)
+          if (!_wsStore.has(ws.id)) _wsStore.set(ws.id, makeEmptySlice())
+        }
+      })
+    }
+  } catch { /* ignore */ }
+}
+
+function savePersistedWorkspaces() {
+  try {
+    const userWorkspaces = _workspaces.filter(
+      (w) => !['ws-personal', 'ws-business', 'ws-org'].includes(w.id)
+    )
+    localStorage.setItem(REGISTERED_WORKSPACES_KEY, JSON.stringify(userWorkspaces))
+  } catch { /* ignore */ }
+}
+
 // Load on module init
 loadRegisteredUsers()
+loadPersistedWorkspaces()
 
 function nextId(prefix) { return `${prefix}-${++_idSeq}` }
 
@@ -161,32 +183,31 @@ export async function mockLogin({ email, password }) {
   await delay()
   if (!email || !password) throw { message: 'Email and password are required.', status: 400 }
 
-  // Check if this email was registered in this session
+  // Check if this email was registered in this session or persisted
   if (_registeredUsers.has(email)) {
     const user = _registeredUsers.get(email)
-    // Verify password for registered users
     if (user.password !== password) {
-      throw { message: 'Invalid email or password.', status: 401 }
+      throw { message: 'Incorrect password. Please try again.', status: 401 }
     }
-    _currentUserId = user.id
+    _currentUserId = user.id   // ← critical: set before mockListWorkspaces is called
     _user = { ...user }
-    // Don't return password in response
     const { password: _, ...safeUser } = user
     return { accessToken: 'mock-access-token-' + Date.now(), user: { ...safeUser } }
   }
 
-  // Allow demo user login with correct credentials
+  // Allow demo user (Amara) login
   if (email === DEMO_EMAIL && password === DEMO_PASSWORD) {
     const user = { ...MOCK_USER, id: 'user-001', name: 'Amara Wanjiku', email, password: DEMO_PASSWORD }
     _currentUserId = user.id
     _user = user
-    _registeredUsers.set(email, user) // Cache for subsequent logins
+    _registeredUsers.set(email, user)
+    saveRegisteredUsers()
     const { password: _, ...safeUser } = user
     return { accessToken: 'mock-access-token-' + Date.now(), user: { ...safeUser } }
   }
 
-  // Invalid credentials
-  throw { message: 'Invalid email or password.', status: 401 }
+  // Not found
+  throw { message: 'No account found with that email. Please register first.', status: 401 }
 }
 
 export async function mockRegister({ name, email, password }) {
@@ -221,11 +242,10 @@ export async function mockRegister({ name, email, password }) {
 }
 
 export async function mockRefreshToken() {
-  await delay(120) // faster — session restore should be quick
-  // Return the CURRENT user, not the default mock user.
-  // This prevents a page refresh from overwriting a registered user's
-  // profile with Amara Wanjiku's data.
+  await delay(120)
   if (!_user) throw { message: 'No active session.', status: 401 }
+  // Restore _currentUserId from _user in case of page refresh
+  if (_user.id && !_currentUserId) _currentUserId = _user.id
   const { password: _, ...safeUser } = _user
   return { accessToken: 'mock-access-token-refreshed-' + Date.now(), user: { ...safeUser } }
 }
@@ -1457,6 +1477,8 @@ export async function mockCreateWorkspace(payload) {
   _workspaces.push(ws)
   // Ensure an empty data slice exists for this workspace
   getSlice(ws.id)
+  // Persist so this workspace survives page refresh
+  savePersistedWorkspaces()
   return ws
 }
 

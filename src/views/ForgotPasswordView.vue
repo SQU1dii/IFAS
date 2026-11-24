@@ -45,9 +45,11 @@ async function handleSubmit() {
 
   try {
     const res = await auth.forgotPassword(form.email)
-    // In mock mode, capture the token for testing
+    // In mock mode, the response includes the reset token.
+    // Skip the "check your email" step and go directly to reset page.
     if (res?.mockToken) {
-      mockToken.value = res.mockToken
+      router.push({ name: 'reset-password', query: { token: res.mockToken } })
+      return
     }
     submitted.value = true
   } catch (err) {
