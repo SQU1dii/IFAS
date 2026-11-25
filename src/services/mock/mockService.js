@@ -876,7 +876,7 @@ export async function mockAddContribution(goalId, payload, wsId = 'ws-personal')
     ...slice.savings[gIdx],
     current_amount:
       type === 'contribution'
-        ? _savings[gIdx].current_amount + amt
+        ? slice.savings[gIdx].current_amount + amt
         : slice.savings[gIdx].current_amount - amt,
   }
 

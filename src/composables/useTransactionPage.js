@@ -11,9 +11,11 @@ import accountService     from '@/services/accountService'
 import categoryService    from '@/services/categoryService'
 import workspaceService   from '@/services/workspaceService'
 import { useWorkspaceStore } from '@/stores/workspace'
+import { useUiStore }        from '@/stores/ui'
 
 export function useTransactionPage(lockedType = null) {
-  const ws = useWorkspaceStore()
+  const ws      = useWorkspaceStore()
+  const uiStore = useUiStore()
 
   // ── Reference data ──────────────────────────────────────
   const categories  = ref([])
@@ -123,7 +125,9 @@ export function useTransactionPage(lockedType = null) {
     try {
       if (editTarget.value) await transactionService.update(editTarget.value.id, finalPayload)
       else                  await transactionService.create(finalPayload)
-      closeModal(); load()
+      closeModal()
+      load()
+      uiStore.triggerBudgetRefresh()  // update budget utilization in BudgetsView + dashboard
     } catch (err) {
       modalApiError.value  = err?.message ?? 'Save failed.'
       modalFieldErrs.value = err?.fieldErrors ?? {}
@@ -140,7 +144,7 @@ export function useTransactionPage(lockedType = null) {
 
   async function handleDelete() {
     deleteLoading.value = true; deleteError.value = ''
-    try { await transactionService.remove(deleteTarget.value.id); closeDelete(); load() }
+    try { await transactionService.remove(deleteTarget.value.id); closeDelete(); load(); uiStore.triggerBudgetRefresh() }
     catch (err) { deleteError.value = err?.message ?? 'Delete failed.' }
     finally { deleteLoading.value = false }
   }
