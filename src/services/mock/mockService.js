@@ -1631,27 +1631,32 @@ export async function mockListRecommendations(wsId) {
 export async function mockGetBusinessDashboard(wsId, params = {}) {
   await delay()
   const wsTxns = getSlice(wsId).transactions
-  const slice = getSlice(wsId)
+  const slice  = getSlice(wsId)
   const monthly = buildMonthlySeries(wsTxns, 6)
   const budgets = computeBudgetUtilization(wsTxns, slice.budgets, new Date().toISOString().slice(0, 10))
   const alerts  = _alerts.filter((a) => a.workspace_id === wsId && a.status === 'open')
 
+  // Compute totals from the actual workspace transactions — not the demo summary
+  const startOfMonth = new Date()
+  startOfMonth.setDate(1)
+  const monthStart = startOfMonth.toISOString().slice(0, 10)
+  const today      = new Date().toISOString().slice(0, 10)
+  const period     = aggregate(wsTxns, monthStart, today)
+
   return {
-    ...MOCK_BUSINESS_SUMMARY,
-    open_alerts: alerts.length,
+    total_income:   period.income,
+    total_expenses: period.expenses,
+    net_profit:     period.netCashFlow,
+    net_margin_pct: period.savingsRate,
+    open_alerts:    alerts.length,
     monthly_series: monthly,
     budget_vs_actual: budgets.slice(0, 6).map((b) => ({
       category_name: b.category_name,
-      budget:  b.limit,
-      actual:  b.spent,
+      budget:   b.limit,
+      actual:   b.spent,
       variance: b.remaining,
     })),
-    top_expense_categories: monthly.length
-      ? aggregate(wsTxns,
-          monthly[0]?.month + '-01',
-          new Date().toISOString().slice(0, 10)
-        ).spendingByCategory.slice(0, 5)
-      : [],
+    top_expense_categories: period.spendingByCategory.slice(0, 5),
     recent_alerts: alerts.slice(0, 3),
   }
 }
@@ -1659,16 +1664,26 @@ export async function mockGetBusinessDashboard(wsId, params = {}) {
 // ── Organisation dashboard ────────────────────────────────────
 export async function mockGetOrgDashboard(wsId, params = {}) {
   await delay()
-  const depts = await mockListDepartments(wsId)
+  const depts  = await mockListDepartments(wsId)
   const alerts = _alerts.filter((a) => a.workspace_id === wsId && a.status === 'open')
-
   const wsTxns = getSlice(wsId).transactions
+  const slice  = getSlice(wsId)
   const monthly = buildMonthlySeries(wsTxns, 6)
 
+  // Compute budget totals from actual workspace data
+  const budgets = computeBudgetUtilization(wsTxns, slice.budgets, new Date().toISOString().slice(0, 10))
+  const total_budget = budgets.reduce((s, b) => s + b.limit,  0)
+  const total_spent  = budgets.reduce((s, b) => s + b.spent,  0)
+  const remaining    = total_budget - total_spent
+  const utilization  = total_budget > 0 ? (total_spent / total_budget) * 100 : 0
+
   return {
-    ...MOCK_ORG_SUMMARY,
-    open_alerts: alerts.length,
-    departments: depts,
+    total_budget,
+    total_spent,
+    remaining,
+    utilization_pct: Math.round(utilization * 10) / 10,
+    open_alerts:  alerts.length,
+    departments:  depts,
     monthly_series: monthly,
     recent_alerts: alerts.slice(0, 3),
   }
@@ -1694,21 +1709,92 @@ export async function mockSendMessage(wsId, conversationId, content) {
   // Add user message
   conv.messages.push({ id: nextId('msg'), role: 'user', content, created_at: new Date().toISOString() })
 
-  // Generate a canned assistant reply based on keywords
-  const lower = content.toLowerCase()
-  let reply = 'I can help you understand your finances. Try asking about your spending, budgets, savings goals, or income.'
-  if (lower.includes('transport') || lower.includes('matatu'))
-    reply = 'Your Transport / Matatu budget is currently at 70% utilization. You have KSh 3,600 remaining this month.'
-  else if (lower.includes('savings') || lower.includes('goal'))
-    reply = 'You have 4 active savings goals. Your Emergency Fund is 64% funded at KSh 192,000 of a KSh 300,000 target.'
-  else if (lower.includes('budget'))
-    reply = 'You have 9 active budgets. M-Pesa Send Money is at 89% — the closest to its limit this month.'
-  else if (lower.includes('income') || lower.includes('salary'))
-    reply = 'Your income this month is KSh 121,500 from salary. Your savings rate is 26.4%.'
-  else if (lower.includes('expense') || lower.includes('spent'))
-    reply = 'Your top expense categories this month are: Rent (KSh 42,000), Groceries (KSh 11,200), Transport (KSh 8,400).'
-  else if (lower.includes('forecast') || lower.includes('predict'))
-    reply = 'Based on the last 6 months, I estimate next month\'s expenses at approximately KSh 91,000 ± 8%. This is an estimate — actual results will vary.'
+  // Generate contextual replies using the actual workspace data
+  const lower   = content.toLowerCase()
+  const slice   = getSlice(wsId)
+  const wsTxns  = slice.transactions
+  const wsBuds  = slice.budgets
+  const wsSavs  = slice.savings
+
+  // Compute live numbers from the workspace
+  const today      = new Date().toISOString().slice(0, 10)
+  const monthStart = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString().slice(0, 10)
+  const period     = aggregate(wsTxns, monthStart, today)
+  const budgets    = computeBudgetUtilization(wsTxns, wsBuds, today)
+  const totalBudgets = budgets.length
+  const overBudgets  = budgets.filter((b) => b.status === 'over')
+  const nearBudgets  = budgets.filter((b) => b.status === 'warning')
+
+  let reply
+
+  if (lower.includes('spend') || lower.includes('expense') || lower.includes('spent')) {
+    if (period.expenses === 0) {
+      reply = 'You have no recorded expenses this month yet. Add transactions to start tracking your spending.'
+    } else {
+      const top = period.spendingByCategory[0]
+      reply = `Your total expenses this month are ${new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES' }).format(period.expenses)}.` +
+        (top ? ` Your biggest spending category is ${top.name} at ${new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES' }).format(top.amount)}.` : '')
+    }
+  } else if (lower.includes('income') || lower.includes('salary') || lower.includes('earn')) {
+    if (period.income === 0) {
+      reply = 'No income recorded this month yet. Add an income transaction to get started.'
+    } else {
+      reply = `Your total income this month is ${new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES' }).format(period.income)}. ` +
+        `Your net cash flow is ${new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES' }).format(period.netCashFlow)}.`
+    }
+  } else if (lower.includes('budget')) {
+    if (totalBudgets === 0) {
+      reply = 'You have no budgets set up yet. Go to Budgets to create your first monthly budget.'
+    } else if (overBudgets.length) {
+      reply = `You have ${totalBudgets} budget${totalBudgets !== 1 ? 's' : ''}. ` +
+        `You are over budget on: ${overBudgets.map((b) => b.category_name).join(', ')}.`
+    } else if (nearBudgets.length) {
+      reply = `You have ${totalBudgets} budget${totalBudgets !== 1 ? 's' : ''}. ` +
+        `You are near your limit on: ${nearBudgets.map((b) => b.category_name).join(', ')}. All others are on track.`
+    } else {
+      reply = `You have ${totalBudgets} budget${totalBudgets !== 1 ? 's' : ''} and all are on track this month.`
+    }
+  } else if (lower.includes('saving') || lower.includes('goal')) {
+    if (wsSavs.length === 0) {
+      reply = 'You have no savings goals yet. Go to Savings Goals to set your first target.'
+    } else {
+      const enriched = wsSavs.map(enrichGoal)
+      const reached  = enriched.filter((g) => g.reached).length
+      const topGoal  = enriched.sort((a, b) => b.progress_pct - a.progress_pct)[0]
+      reply = `You have ${wsSavs.length} savings goal${wsSavs.length !== 1 ? 's' : ''}` +
+        (reached ? `, ${reached} already reached` : '') + `. ` +
+        (topGoal ? `${topGoal.name} is ${topGoal.progress_pct}% funded.` : '')
+    }
+  } else if (lower.includes('account')) {
+    const accs = slice.accounts.filter((a) => a.is_active !== false)
+    if (accs.length === 0) {
+      reply = 'You have no accounts set up yet. Go to Accounts to add your bank or M-Pesa account.'
+    } else {
+      const total = accs.reduce((s, a) => s + (a.balance ?? 0), 0)
+      reply = `You have ${accs.length} account${accs.length !== 1 ? 's' : ''} with a combined balance of ${new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES' }).format(total)}.`
+    }
+  } else if (lower.includes('forecast') || lower.includes('predict') || lower.includes('next month')) {
+    if (wsTxns.length < 10) {
+      reply = 'I need more transaction history to generate a forecast. Add at least a few months of data first.'
+    } else {
+      const avg = period.expenses > 0 ? period.expenses : (wsTxns.filter((t) => t.type === 'expense').reduce((s, t) => s + t.amount, 0) / Math.max(1, new Set(wsTxns.map((t) => t.date.slice(0, 7))).size))
+      reply = `Based on your recent activity, I estimate next month's expenses at approximately ${new Intl.NumberFormat('en-KE', { style: 'currency', currency: 'KES' }).format(avg)}. This is a rough estimate — go to Intelligence → Forecast for a detailed projection.`
+    }
+  } else if (lower.includes('hello') || lower.includes('hi ') || lower.includes('hey')) {
+    reply = `Hello! I am your IFAS financial assistant. I can help you understand your spending, budgets, savings goals, income, and accounts. What would you like to know?`
+  } else if (lower.includes('tip') || lower.includes('advice') || lower.includes('help')) {
+    if (period.savingsRate > 20) {
+      reply = `Great work! Your savings rate is ${period.savingsRate.toFixed(1)}% — above the recommended 20% benchmark. Keep it up.`
+    } else if (period.savingsRate > 0) {
+      reply = `Your savings rate this month is ${period.savingsRate.toFixed(1)}%. The recommended target is 20%. Try reducing discretionary spending to close the gap.`
+    } else {
+      reply = 'Start by adding your income and expense transactions. I will then give you personalised tips based on your actual spending patterns.'
+    }
+  } else {
+    reply = wsTxns.length === 0
+      ? 'Your workspace has no transactions yet. Add some income and expense records, then ask me about your spending, budgets, or savings.'
+      : `I can help you with questions about your spending, income, budgets, savings goals, accounts, and financial forecasts. Try asking: "How much did I spend this month?" or "Am I on track with my budgets?"`
+  }
 
   const assistantMsg = { id: nextId('msg'), role: 'assistant', content: reply, created_at: new Date().toISOString() }
   conv.messages.push(assistantMsg)
