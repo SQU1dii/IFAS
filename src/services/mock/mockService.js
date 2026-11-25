@@ -39,23 +39,15 @@ function delay(ms = MOCK_DELAY) {
 //
 // Each workspace has its own isolated data slice. The three pre-seeded
 // workspaces (ws-personal, ws-business, ws-org) start with realistic
-// sample data. Any workspace created at runtime starts completely empty —
-// mirroring what the real backend does (a new workspace has zero rows).
+// sample data. Any workspace created at runtime starts completely empty.
 //
-// _wsStore is a Map<workspaceId, StoreSlice>.
-// Helper functions ws_get/ws_set/ws_transactions etc. always key by wsId
-// so no data leaks between workspaces.
+// Data is persisted to localStorage so mutations survive page refresh.
 
-const SEEDED_WS_IDS = ['ws-personal', 'ws-business', 'ws-org']
+const SEEDED_WS_IDS   = ['ws-personal', 'ws-business', 'ws-org']
+const WS_DATA_LS_KEY  = 'ifas_ws_data'   // localStorage key for workspace slices
 
 function makeEmptySlice() {
-  return {
-    transactions:  [],
-    accounts:      [],
-    budgets:       [],
-    savings:       [],
-    contributions: [],
-  }
+  return { transactions: [], accounts: [], budgets: [], savings: [], contributions: [] }
 }
 
 function makeSeededSlice() {
@@ -74,11 +66,50 @@ const _wsStore = new Map([
   ['ws-org',      makeSeededSlice()],
 ])
 
+// ── Persistence helpers ──────────────────────────────────────
+// Save ALL workspace slices (user-created ones) to localStorage.
+// Seeded workspaces are excluded — they always come from makeSeededSlice().
+function saveWsData() {
+  try {
+    const toSave = {}
+    for (const [id, slice] of _wsStore.entries()) {
+      if (!SEEDED_WS_IDS.includes(id)) toSave[id] = slice
+    }
+    localStorage.setItem(WS_DATA_LS_KEY, JSON.stringify(toSave))
+  } catch { /* storage full or unavailable — silently skip */ }
+}
+
+// Also save seeded workspace slices so user edits to them persist.
+function saveAllWsData() {
+  try {
+    const toSave = {}
+    for (const [id, slice] of _wsStore.entries()) {
+      toSave[id] = slice
+    }
+    localStorage.setItem(WS_DATA_LS_KEY, JSON.stringify(toSave))
+  } catch { /* ignore */ }
+}
+
+// Load persisted workspace slices back into _wsStore on module init.
+function loadWsData() {
+  try {
+    const stored = localStorage.getItem(WS_DATA_LS_KEY)
+    if (!stored) return
+    const data = JSON.parse(stored)
+    for (const [id, slice] of Object.entries(data)) {
+      _wsStore.set(id, slice)
+    }
+  } catch { /* corrupted storage — ignore and use defaults */ }
+}
+
 // Get (or lazily create) a workspace's data slice.
 function getSlice(wsId) {
   if (!_wsStore.has(wsId)) _wsStore.set(wsId, makeEmptySlice())
   return _wsStore.get(wsId)
 }
+
+// Load persisted data on module init
+loadWsData()
 
 // ── Workspace-independent stores ────────────────────────────
 let _workspaces   = MOCK_WORKSPACES.map((w) => ({ ...w }))
@@ -436,6 +467,7 @@ export async function mockCreateTransaction(payload, wsId = 'ws-personal') {
     needs_review: payload.needs_review ?? false,
   }
   slice.transactions.unshift(txn)
+  saveAllWsData()
   return txn
 }
 
@@ -461,6 +493,7 @@ export async function mockUpdateTransaction(id, payload, wsId = 'ws-personal') {
     destination_account_name: dest?.name ?? null,
     needs_review: payload.needs_review ?? slice.transactions[idx].needs_review ?? false,
   }
+  saveAllWsData()
   return slice.transactions[idx]
 }
 
@@ -470,6 +503,7 @@ export async function mockDeleteTransaction(id, wsId = 'ws-personal') {
   const idx   = slice.transactions.findIndex((t) => t.id === id)
   if (idx === -1) throw { message: 'Transaction not found.', status: 404 }
   slice.transactions.splice(idx, 1)
+  saveAllWsData()
   return {}
 }
 
@@ -526,6 +560,7 @@ export async function mockCsvConfirm(validRows, wsId = 'ws-personal') {
     const txn = await mockCreateTransaction(row.data ?? row, wsId)
     created.push(txn)
   }
+  saveAllWsData()
   return { imported: created.length, transactions: created }
 }
 
@@ -557,6 +592,7 @@ export async function mockCreateAccount(payload, wsId = 'ws-personal') {
     created_at: new Date().toISOString().slice(0, 10),
   }
   slice.accounts.push(acc)
+  saveAllWsData()
   return acc
 }
 
@@ -566,7 +602,8 @@ export async function mockUpdateAccount(id, payload, wsId = 'ws-personal') {
   const idx = slice.accounts.findIndex((a) => a.id === id)
   if (idx === -1) throw { message: 'Account not found.', status: 404 }
   slice.accounts[idx] = { ...slice.accounts[idx], ...payload }
-  return _accounts[idx]
+  saveAllWsData()
+  return slice.accounts[idx]
 }
 
 export async function mockDeleteAccount(id, wsId = 'ws-personal') {
@@ -575,6 +612,7 @@ export async function mockDeleteAccount(id, wsId = 'ws-personal') {
   const idx = slice.accounts.findIndex((a) => a.id === id)
   if (idx === -1) throw { message: 'Account not found.', status: 404 }
   slice.accounts[idx] = { ...slice.accounts[idx], is_active: false }
+  saveAllWsData()
   return {}
 }
 
@@ -693,6 +731,7 @@ export async function mockCreateBudget(payload, wsId = 'ws-personal') {
     notes:         payload.notes ?? '',
   }
   slice.budgets.push(bud)
+  saveAllWsData()
   return bud
 }
 
@@ -713,6 +752,7 @@ export async function mockUpdateBudget(id, payload, wsId = 'ws-personal') {
     limit: payload.limit != null ? Number(payload.limit) : slice.budgets[idx].limit,
     category_name: cat?.name ?? slice.budgets[idx].category_name,
   }
+  saveAllWsData()
   return slice.budgets[idx]
 }
 
@@ -722,6 +762,7 @@ export async function mockDeleteBudget(id, wsId = 'ws-personal') {
   const idx = slice.budgets.findIndex((b) => b.id === id)
   if (idx === -1) throw { message: 'Budget not found.', status: 404 }
   slice.budgets.splice(idx, 1)
+  saveAllWsData()
   return {}
 }
 
@@ -761,6 +802,7 @@ export async function mockCreateSavingsGoal(payload, wsId = 'ws-personal') {
       notes:  'Initial deposit',
     })
   }
+  saveAllWsData()
   return enrichGoal(goal)
 }
 
@@ -776,6 +818,7 @@ export async function mockUpdateSavingsGoal(id, payload, wsId = 'ws-personal') {
     target_date:   payload.target_date   ?? slice.savings[idx].target_date,
     notes:         payload.notes         ?? slice.savings[idx].notes,
   }
+  saveAllWsData()
   return enrichGoal(slice.savings[idx])
 }
 
@@ -786,6 +829,7 @@ export async function mockDeleteSavingsGoal(id, wsId = 'ws-personal') {
   if (idx === -1) throw { message: 'Savings goal not found.', status: 404 }
   slice.savings.splice(idx, 1)
   slice.contributions = slice.contributions.filter((c) => c.goal_id !== id)
+  saveAllWsData()
   return {}
 }
 
@@ -845,7 +889,7 @@ export async function mockAddContribution(goalId, payload, wsId = 'ws-personal')
     notes:   payload.notes ?? '',
   }
   slice.contributions.push(entry)
-
+  saveAllWsData()
   return { contribution: entry, goal: enrichGoal(slice.savings[gIdx]) }
 }
 
