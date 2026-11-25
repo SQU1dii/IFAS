@@ -101,6 +101,17 @@ const isValid  = computed(() => Object.values(errors.value).every((e) => !e))
 function touch(f)  { touched[f] = true }
 function touchAll(){ Object.keys(errors.value).forEach((k) => (touched[k] = true)) }
 
+const USE_MOCK = import.meta.env.VITE_USE_MOCK === 'true'
+
+// In mock mode, category/account IDs are strings (e.g. 'cat-groceries', 'acc-equity').
+// In real mode, the backend validator requires integer IDs.
+function coerceId(id) {
+  if (!id) return null
+  if (USE_MOCK) return id  // keep string IDs for mock
+  const n = parseInt(id)
+  return Number.isFinite(n) ? n : null
+}
+
 function handleSubmit() {
   touchAll()
   if (!isValid.value) return
@@ -109,10 +120,9 @@ function handleSubmit() {
     description: form.description.trim(),
     amount:      parseFloat(form.amount),
     type:        form.type,
-    // Backend validators expect integer IDs (z.number().int().positive())
-    category_id:            form.type !== 'transfer' ? parseInt(form.category_id) || null : null,
-    account_id:             parseInt(form.account_id) || null,
-    destination_account_id: form.type === 'transfer' ? parseInt(form.destination_account_id) || null : null,
+    category_id:            form.type !== 'transfer' ? coerceId(form.category_id) : null,
+    account_id:             coerceId(form.account_id),
+    destination_account_id: form.type === 'transfer' ? coerceId(form.destination_account_id) : null,
     notes:       form.notes.trim(),
   }
   emit('submit', payload)
