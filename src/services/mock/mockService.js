@@ -959,12 +959,18 @@ function pctChange(curr, prev) {
 }
 
 function computeBudgetUtilization(txns, budgets, endIso) {
-  const end   = new Date(endIso || new Date())
+  const end = new Date(endIso || new Date())
   if (Number.isNaN(end.getTime())) return []
-  const start = new Date(end.getFullYear(), end.getMonth(), 1).toISOString().slice(0, 10)
   const endStr = endIso || end.toISOString().slice(0, 10)
 
   return (budgets || []).map((b) => {
+    // Period start depends on the budget type:
+    //   monthly → 1st of current month
+    //   yearly  → 1st of January this year
+    const start = b.period === 'yearly'
+      ? new Date(end.getFullYear(), 0, 1).toISOString().slice(0, 10)
+      : new Date(end.getFullYear(), end.getMonth(), 1).toISOString().slice(0, 10)
+
     const spent = txns
       .filter((t) => t.type === 'expense' && t.category_id === b.category_id && inRange(t.date, start, endStr))
       .reduce((s, t) => s + t.amount, 0)

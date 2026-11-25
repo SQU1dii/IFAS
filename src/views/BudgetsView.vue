@@ -45,7 +45,7 @@ const categories = ref([])
 onMounted(async () => {
   try {
     const all = await categoryService.list()
-    categories.value = all.filter((c) => c.type === 'expense')
+    categories.value = all.filter((c) => (c.type || '').toUpperCase() === 'EXPENSE')
   } catch { /* non-critical */ }
   load()
 })
